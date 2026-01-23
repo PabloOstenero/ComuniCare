@@ -31,7 +31,13 @@ class HelpViewModel(
 
     private val _generatedRecoveryCode = MutableStateFlow<String?>(null)
 
+    private val _notificationEvent = MutableSharedFlow<Pair<String, String>>()
+    val notificationEvent = _notificationEvent.asSharedFlow()
+
     private val allRequests: Flow<List<HelpRequest>> = getHelpRequestsUseCase()
+
+    // Control de notificaciones ya mostradas para evitar spam
+    private val notifiedEmergencyIds = mutableSetOf<String>()
 
     val requests: StateFlow<List<HelpRequest>> = combine(allRequests, currentUser) { requests, user ->
         when (user?.role) {
@@ -48,6 +54,30 @@ class HelpViewModel(
             null -> emptyList()
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // RA8 - Sistema de escucha activa para emergencias
+        viewModelScope.launch {
+            allRequests.collect { requestsList ->
+                val user = _currentUser.value
+                // Solo notificamos si el usuario actual es administrador
+                if (user?.role == UserRole.ADMIN) {
+                    requestsList.forEach { request ->
+                        if (request.type == HelpType.EMERGENCY && 
+                            request.status == RequestStatus.PENDING && 
+                            !notifiedEmergencyIds.contains(request.id)) {
+                            
+                            _notificationEvent.emit(
+                                "¡EMERGENCIA de ${request.beneficiaryName}!" to 
+                                "El usuario necesita ayuda inmediata. Revisa los detalles en el panel."
+                            )
+                            notifiedEmergencyIds.add(request.id)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fun login(username: String, password: String, role: UserRole, onComplete: (User) -> Unit) {
         viewModelScope.launch {
@@ -82,7 +112,6 @@ class HelpViewModel(
             try {
                 val user = getUserUseCase(username)
                 if (user != null && user.trustedContactId != null) {
-                    // Buscar si ya existe una solicitud de recuperación activa
                     val requestsList = allRequests.first()
                     val activeRecovery = requestsList.find { 
                         it.beneficiaryId == user.id && 
@@ -91,19 +120,17 @@ class HelpViewModel(
                     }
 
                     if (activeRecovery != null) {
-                        // Intentar extraer el código de la descripción existente
                         val codeRegex = Regex("Código de seguridad: (\\d{4})")
                         val match = codeRegex.find(activeRecovery.description)
                         val existingCode = match?.groupValues?.get(1)
                         
                         if (existingCode != null) {
                             _generatedRecoveryCode.value = existingCode
-                            _recoveryHint.value = "Ya tienes una solicitud de acceso activa. Pídele el código a: ${user.trustedContactId}"
+                            _recoveryHint.value = "Solicitud activa. Contacta con: ${user.trustedContactId}"
                             return@launch
                         }
                     }
 
-                    // Si no hay activa, generar nuevo código y mandar aviso
                     val code = (1000..9999).random().toString()
                     _generatedRecoveryCode.value = code
                     
@@ -115,7 +142,13 @@ class HelpViewModel(
                         assignedVolunteerId = user.trustedContactId
                     )
                     addHelpRequestUseCase(recoveryRequest)
-                    _recoveryHint.value = "Aviso enviado a tu contacto de confianza: ${user.trustedContactId}. Pídele el código de acceso."
+                    _recoveryHint.value = "Aviso enviado a tu contacto: ${user.trustedContactId}."
+
+                    _notificationEvent.emit(
+                        "Recuperación de Cuenta" to 
+                        "El usuario ${user.name} solicita ayuda para entrar. Revisa tu panel."
+                    )
+
                 } else if (user != null) {
                     _recoveryHint.value = "No tienes un contacto de confianza configurado."
                 } else {
@@ -128,22 +161,31 @@ class HelpViewModel(
     }
 
     fun verifyRecoveryCode(username: String, inputCode: String, onComplete: (User) -> Unit) {
-        if (_generatedRecoveryCode.value == inputCode && inputCode.isNotBlank()) {
-            loginWithRecovery(username, onComplete)
-        } else {
-            _loginError.value = "Código de verificación incorrecto"
-        }
-    }
-
-    private fun loginWithRecovery(username: String, onComplete: (User) -> Unit) {
         viewModelScope.launch {
             val user = getUserUseCase(username)
-            if (user != null) {
+            if (user == null) {
+                _loginError.value = "Usuario no encontrado"
+                return@launch
+            }
+
+            val requestsList = allRequests.first()
+            val activeRecovery = requestsList.find { 
+                it.beneficiaryId == user.id && 
+                it.type == HelpType.RECOVERY && 
+                it.status != RequestStatus.COMPLETED 
+            }
+
+            val codeRegex = Regex("Código de seguridad: (\\d{4})")
+            val match = activeRecovery?.let { codeRegex.find(it.description) }
+            val validCode = match?.groupValues?.get(1)
+
+            if (validCode == inputCode && inputCode.isNotBlank()) {
                 _currentUser.value = user
-                _generatedRecoveryCode.value = null 
                 withContext(Dispatchers.Main) {
                     onComplete(user)
                 }
+            } else {
+                _loginError.value = "Código incorrecto"
             }
         }
     }
@@ -156,9 +198,7 @@ class HelpViewModel(
                 val updatedUser = user.copy(trustedContactId = contactId)
                 saveUserUseCase(updatedUser)
                 _currentUser.value = updatedUser
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
@@ -180,18 +220,36 @@ class HelpViewModel(
                     description = description
                 )
                 addHelpRequestUseCase(newRequest)
+                
+                // Confirmación local al usuario
+                if (type == HelpType.EMERGENCY) {
+                    _notificationEvent.emit("Emergencia de ${user.name} enviada" to "Estamos avisando a todos los administradores.")
+                }
             } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
     fun sendEmergencyAlert() {
-        val user = _currentUser.value ?: return
-        requestHelp(HelpType.EMERGENCY, "¡EMERGENCIA! Necesito ayuda inmediata.")
+        requestHelp(HelpType.EMERGENCY, "¡EMERGENCIA! El usuario necesita ayuda inmediata.")
     }
 
     fun updateStatus(requestId: String, status: RequestStatus) {
         viewModelScope.launch {
-            updateHelpRequestStatusUseCase(requestId, status)
+            try { 
+                updateHelpRequestStatusUseCase(requestId, status)
+                
+                if (status == RequestStatus.ASSIGNED) {
+                    val requestsList = allRequests.first()
+                    val request = requestsList.find { it.id == requestId }
+                    if (request != null && request.type == HelpType.RECOVERY) {
+                        val codeRegex = Regex("Código de seguridad: (\\d{4})")
+                        val match = codeRegex.find(request.description)
+                        val code = match?.groupValues?.get(1) ?: "****"
+                        
+                        _notificationEvent.emit("Código de Acceso" to "Tu contacto ha validado tu identidad. Código: $code")
+                    }
+                }
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 

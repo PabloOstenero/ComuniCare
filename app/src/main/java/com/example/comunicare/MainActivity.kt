@@ -1,7 +1,13 @@
 package com.example.comunicare
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
@@ -13,7 +19,9 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -26,8 +34,10 @@ import com.example.comunicare.data.repository.HelpRepositoryImpl
 import com.example.comunicare.domain.model.UserRole
 import com.example.comunicare.ui.screens.*
 import com.example.comunicare.ui.theme.ComuniCareTheme
+import com.example.comunicare.ui.utils.NotificationHelper
 import com.example.comunicare.ui.viewmodel.HelpViewModel
 import com.example.comunicare.ui.viewmodel.HelpViewModelFactory
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -49,10 +59,29 @@ class MainActivity : ComponentActivity() {
                 val viewModel: HelpViewModel = viewModel(factory = factory)
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
+                val context = LocalContext.current
+                
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
-                
                 val currentUser by viewModel.currentUser.collectAsState()
+
+                // RA8 - Permisos de notificación para Android 13+
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { }
+
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                    
+                    // Escuchar eventos de notificación desde el ViewModel
+                    viewModel.notificationEvent.collectLatest { (title, message) ->
+                        NotificationHelper.showNotification(context, title, message)
+                    }
+                }
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
@@ -63,7 +92,7 @@ class MainActivity : ComponentActivity() {
                             if (currentUser != null) {
                                 Text(
                                     text = "Usuario: ${currentUser?.name}",
-                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
