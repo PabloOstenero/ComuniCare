@@ -10,18 +10,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
+/**
+ * ViewModel central de la aplicación ComuniCare.
+ * Gestiona el estado global, la autenticación, las solicitudes de ayuda, la mensajería y la persistencia de sesión.
+ */
 class HelpViewModel(
     private val getHelpRequestsUseCase: GetHelpRequestsUseCase,
     private val addHelpRequestUseCase: AddHelpRequestUseCase,
     private val updateHelpRequestStatusUseCase: UpdateHelpRequestStatusUseCase,
+    private val assignHelpRequestUseCase: AssignHelpRequestUseCase,
     private val getChatMessagesUseCase: GetChatMessagesUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
     private val getUserUseCase: GetUserUseCase,
-    private val saveUserUseCase: SaveUserUseCase
+    private val saveUserUseCase: SaveUserUseCase,
+    private val getSavedSessionUseCase: GetSavedSessionUseCase,
+    private val saveSessionUseCase: SaveSessionUseCase,
+    private val clearSessionUseCase: ClearSessionUseCase,
+    private val getUserByIdUseCase: GetUserByIdUseCase
 ) : ViewModel() {
 
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+
+    private val _isSessionLoaded = MutableStateFlow(false)
+    val isSessionLoaded: StateFlow<Boolean> = _isSessionLoaded.asStateFlow()
 
     private val _loginError = MutableStateFlow<String?>(null)
     val loginError: StateFlow<String?> = _loginError.asStateFlow()
@@ -35,19 +47,13 @@ class HelpViewModel(
     val notificationEvent = _notificationEvent.asSharedFlow()
 
     private val allRequests: Flow<List<HelpRequest>> = getHelpRequestsUseCase()
-
-    // Control de notificaciones ya mostradas para evitar spam
     private val notifiedEmergencyIds = mutableSetOf<String>()
 
     val requests: StateFlow<List<HelpRequest>> = combine(allRequests, currentUser) { requests, user ->
         when (user?.role) {
             UserRole.ADMIN -> {
                 requests.filter { 
-                    if (it.type == HelpType.RECOVERY) {
-                        it.assignedVolunteerId == user.id
-                    } else {
-                        true
-                    }
+                    if (it.type == HelpType.RECOVERY) it.assignedVolunteerId == user.id else true
                 }
             }
             UserRole.BENEFICIARY -> requests.filter { it.beneficiaryId == user.id }
@@ -56,11 +62,11 @@ class HelpViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // RA8 - Sistema de escucha activa para emergencias
+        loadSavedSession()
+        
         viewModelScope.launch {
             allRequests.collect { requestsList ->
                 val user = _currentUser.value
-                // Solo notificamos si el usuario actual es administrador
                 if (user?.role == UserRole.ADMIN) {
                     requestsList.forEach { request ->
                         if (request.type == HelpType.EMERGENCY && 
@@ -69,12 +75,30 @@ class HelpViewModel(
                             
                             _notificationEvent.emit(
                                 "¡EMERGENCIA de ${request.beneficiaryName}!" to 
-                                "El usuario necesita ayuda inmediata. Revisa los detalles en el panel."
+                                "El usuario necesita ayuda inmediata. Revisa el panel."
                             )
                             notifiedEmergencyIds.add(request.id)
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun loadSavedSession() {
+        viewModelScope.launch {
+            try {
+                val savedUserId = getSavedSessionUseCase()
+                if (savedUserId != null) {
+                    val user = getUserByIdUseCase(savedUserId)
+                    if (user != null) {
+                        _currentUser.value = user
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isSessionLoaded.value = true
             }
         }
     }
@@ -95,15 +119,30 @@ class HelpViewModel(
                 } else if (user.password != password) {
                     _loginError.value = "Contraseña incorrecta"
                     return@launch
+                } else if (user.role != role) {
+                    val updatedUser = user.copy(role = role)
+                    saveUserUseCase(updatedUser)
+                    user = updatedUser
                 }
 
                 _currentUser.value = user
+                saveSessionUseCase(user.id)
                 withContext(Dispatchers.Main) {
                     onComplete(user!!)
                 }
             } catch (e: Exception) {
                 _loginError.value = "Error: ${e.localizedMessage}"
             }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            clearSessionUseCase()
+            _currentUser.value = null
+            _loginError.value = null
+            _recoveryHint.value = null
+            _generatedRecoveryCode.value = null
         }
     }
 
@@ -120,25 +159,19 @@ class HelpViewModel(
                     }
 
                     if (activeRecovery != null) {
-                        val codeRegex = Regex("Código de seguridad: (\\d{4})")
+                        val codeRegex = Regex("Código: (\\d{4})")
                         val match = codeRegex.find(activeRecovery.description)
-                        val existingCode = match?.groupValues?.get(1)
-                        
-                        if (existingCode != null) {
-                            _generatedRecoveryCode.value = existingCode
-                            _recoveryHint.value = "Solicitud activa. Contacta con: ${user.trustedContactId}"
-                            return@launch
-                        }
+                        _generatedRecoveryCode.value = match?.groupValues?.get(1)
+                        _recoveryHint.value = "Solicitud activa. Contacta con: ${user.trustedContactId}"
+                        return@launch
                     }
 
                     val code = (1000..9999).random().toString()
                     _generatedRecoveryCode.value = code
                     
                     val recoveryRequest = HelpRequest(
-                        beneficiaryId = user.id,
-                        beneficiaryName = user.name,
-                        type = HelpType.RECOVERY,
-                        description = "SOLICITUD DE ACCESO: El usuario ha olvidado su contraseña. Código de seguridad: $code",
+                        beneficiaryId = user.id, beneficiaryName = user.name,
+                        type = HelpType.RECOVERY, description = "SOLICITUD DE ACCESO: El usuario ha olvidado su contraseña. Código: $code",
                         assignedVolunteerId = user.trustedContactId
                     )
                     addHelpRequestUseCase(recoveryRequest)
@@ -175,12 +208,13 @@ class HelpViewModel(
                 it.status != RequestStatus.COMPLETED 
             }
 
-            val codeRegex = Regex("Código de seguridad: (\\d{4})")
+            val codeRegex = Regex("Código: (\\d{4})")
             val match = activeRecovery?.let { codeRegex.find(it.description) }
             val validCode = match?.groupValues?.get(1)
 
             if (validCode == inputCode && inputCode.isNotBlank()) {
                 _currentUser.value = user
+                saveSessionUseCase(user.id)
                 withContext(Dispatchers.Main) {
                     onComplete(user)
                 }
@@ -202,13 +236,6 @@ class HelpViewModel(
         }
     }
 
-    fun logout() {
-        _currentUser.value = null
-        _loginError.value = null
-        _recoveryHint.value = null
-        _generatedRecoveryCode.value = null
-    }
-
     fun requestHelp(type: HelpType, description: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -221,9 +248,8 @@ class HelpViewModel(
                 )
                 addHelpRequestUseCase(newRequest)
                 
-                // Confirmación local al usuario
                 if (type == HelpType.EMERGENCY) {
-                    _notificationEvent.emit("Emergencia de ${user.name} enviada" to "Estamos avisando a todos los administradores.")
+                    _notificationEvent.emit("¡EMERGENCIA de ${user.name}!" to "Estamos avisando a todos los administradores.")
                 }
             } catch (e: Exception) { e.printStackTrace() }
         }
@@ -234,18 +260,30 @@ class HelpViewModel(
     }
 
     fun updateStatus(requestId: String, status: RequestStatus) {
+        val user = _currentUser.value ?: return
         viewModelScope.launch {
             try { 
-                updateHelpRequestStatusUseCase(requestId, status)
+                val currentRequests = allRequests.first()
+                val request = currentRequests.find { it.id == requestId } ?: return@launch
+
+                if (status == RequestStatus.ASSIGNED) {
+                    if (request.status == RequestStatus.PENDING) {
+                        assignHelpRequestUseCase(requestId, status, user.id)
+                    }
+                } else if (status == RequestStatus.COMPLETED) {
+                    if (request.assignedVolunteerId == user.id) {
+                        updateHelpRequestStatusUseCase(requestId, status)
+                    }
+                } else {
+                    updateHelpRequestStatusUseCase(requestId, status)
+                }
                 
                 if (status == RequestStatus.ASSIGNED) {
                     val requestsList = allRequests.first()
-                    val request = requestsList.find { it.id == requestId }
-                    if (request != null && request.type == HelpType.RECOVERY) {
-                        val codeRegex = Regex("Código de seguridad: (\\d{4})")
-                        val match = codeRegex.find(request.description)
+                    val req = requestsList.find { it.id == requestId }
+                    if (req != null && req.type == HelpType.RECOVERY) {
+                        val match = Regex("Código: (\\d{4})").find(req.description)
                         val code = match?.groupValues?.get(1) ?: "****"
-                        
                         _notificationEvent.emit("Código de Acceso" to "Tu contacto ha validado tu identidad. Código: $code")
                     }
                 }
@@ -270,6 +308,28 @@ class HelpViewModel(
                 )
                 sendMessageUseCase(message)
             } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
+    fun processVoiceCommand(command: String) {
+        viewModelScope.launch {
+            val cmd = command.lowercase()
+            when {
+                cmd.contains("comida") || cmd.contains("compra") || cmd.contains("súper") || cmd.contains("pan") || cmd.contains("leche") || cmd.contains("hambre") -> 
+                    requestHelp(HelpType.SHOPPING, "Pedido por voz: Comida/Compra")
+                
+                cmd.contains("médico") || cmd.contains("salud") || cmd.contains("medicina") || cmd.contains("pastilla") || cmd.contains("farmacia") || cmd.contains("doctor") || cmd.contains("dolor") || cmd.contains("enfermo") -> 
+                    requestHelp(HelpType.MEDICATION, "Pedido por voz: Salud/Médico")
+                
+                cmd.contains("paseo") || cmd.contains("acompañar") || cmd.contains("salir") || cmd.contains("caminar") || cmd.contains("calle") || cmd.contains("andar") -> 
+                    requestHelp(HelpType.ACCOMPANIMENT, "Pedido por voz: Paseo/Acompañamiento")
+                
+                cmd.contains("ayuda") || cmd.contains("emergencia") || cmd.contains("socorro") || cmd.contains("urgencia") || cmd.contains("mal") || cmd.contains("peligro") || cmd.contains("caída") -> 
+                    sendEmergencyAlert()
+                
+                cmd.contains("otros") || cmd.contains("otro") || cmd.contains("necesidad") || cmd.contains("favor") || cmd.contains("algo") || cmd.contains("ayúdame") -> 
+                    requestHelp(HelpType.OTHER, "Pedido por voz: Otros")
+            }
         }
     }
 }

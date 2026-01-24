@@ -1,11 +1,19 @@
 package com.example.comunicare.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -16,10 +24,12 @@ import com.example.comunicare.ui.components.AccessibleButton
 import com.example.comunicare.ui.components.HelpRequestCard
 import com.example.comunicare.ui.components.ScreenHeader
 import com.example.comunicare.ui.viewmodel.HelpViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Main screen for the beneficiary user.
  * Prioritizes accessibility with large buttons and clear labels (RA4).
+ * Includes REAL NUI Interaction (RA2.c) via Speech-to-Text.
  */
 @Composable
 fun BeneficiaryHomeScreen(
@@ -28,24 +38,70 @@ fun BeneficiaryHomeScreen(
     onNavigateToChat: (String) -> Unit
 ) {
     val requests by viewModel.requests.collectAsState()
-    val myRequests = requests.filter { it.beneficiaryId == viewModel.currentUser.value?.id }
+    val currentUser by viewModel.currentUser.collectAsState()
+    val myRequests = requests.filter { it.beneficiaryId == currentUser?.id }
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        ScreenHeader(
-            title = "Mi Ayuda",
-            onMenuClick = onOpenMenu
-        )
-        
+    // RA2.c - Launcher para el reconocimiento de voz real del sistema
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+            if (spokenText.isNotBlank()) {
+                viewModel.processVoiceCommand(spokenText)
+                scope.launch {
+                    snackbarHostState.showSnackbar("Has dicho: \"$spokenText\"")
+                }
+            }
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            // Botón para activar el micrófono real
+            FloatingActionButton(
+                onClick = {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Diga qué necesita (ej: 'Necesito comida')")
+                    }
+                    try {
+                        speechLauncher.launch(intent)
+                    } catch (_: Exception) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("El reconocimiento de voz no está disponible en este dispositivo.")
+                        }
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+            ) {
+                Icon(Icons.Default.Mic, contentDescription = "Hablar")
+            }
+        },
+        topBar = {
+            ScreenHeader(
+                title = "Mi Ayuda",
+                onMenuClick = onOpenMenu
+            )
+        }
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxSize()
+                .padding(innerPadding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             item {
                 Text(
-                    text = "¿En qué podemos ayudarte?",
+                    text = "¿En qué podemos ayudarte, ${currentUser?.name}?",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -73,10 +129,10 @@ fun BeneficiaryHomeScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                // RA4.d - Critical action (Emergency) highlighted
+                Spacer(modifier = Modifier.height(8.dp))
+                // RA4.d - Acción crítica destacada
                 AccessibleButton(
-                    text = "¡NECESITO AYUDA AHORA!",
+                    text = "¡BOTÓN DE EMERGENCIA!",
                     onClick = { viewModel.sendEmergencyAlert() },
                     containerColor = Color(0xFFD32F2F),
                     contentColor = Color.White
@@ -86,7 +142,7 @@ fun BeneficiaryHomeScreen(
             item {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 Text(
-                    text = "Estado de mis avisos:",
+                    text = "Mis solicitudes actuales:",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -95,7 +151,7 @@ fun BeneficiaryHomeScreen(
             if (myRequests.isEmpty()) {
                 item {
                     Text(
-                        text = "No tienes solicitudes activas.",
+                        text = "No tienes avisos activos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray,
                         modifier = Modifier.padding(vertical = 8.dp)
@@ -130,7 +186,7 @@ fun CategoryButton(
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = label, 

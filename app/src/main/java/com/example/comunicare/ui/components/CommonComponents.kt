@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -52,8 +52,9 @@ fun AccessibleButton(
 fun HelpRequestCard(
     request: HelpRequest,
     isAdmin: Boolean = false,
+    isAssignedToMe: Boolean = false,
     onStatusChange: (RequestStatus) -> Unit = {},
-    onChatClick: () -> Unit = {}
+    onChatClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -92,6 +93,15 @@ fun HelpRequestCard(
                 style = MaterialTheme.typography.bodyMedium
             )
 
+            if (request.status == RequestStatus.ASSIGNED && !isAssignedToMe && isAdmin) {
+                Text(
+                    text = "Asignado a otro administrador",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(
@@ -109,7 +119,8 @@ fun HelpRequestCard(
                                 Text("Asignar")
                             }
                         }
-                        if (request.status == RequestStatus.ASSIGNED) {
+                        // Restricción estricta: Solo el dueño de la tarea puede completarla
+                        if (request.status == RequestStatus.ASSIGNED && isAssignedToMe) {
                             Button(
                                 onClick = { onStatusChange(RequestStatus.COMPLETED) },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
@@ -120,10 +131,10 @@ fun HelpRequestCard(
                     }
                 }
 
-                if (request.status != RequestStatus.PENDING) {
+                if (onChatClick != null && request.status != RequestStatus.PENDING) {
                     IconButton(onClick = onChatClick) {
                         Icon(
-                            imageVector = Icons.Default.Chat,
+                            imageVector = Icons.AutoMirrored.Filled.Chat,
                             contentDescription = "Ir al chat",
                             tint = MaterialTheme.colorScheme.primary
                         )

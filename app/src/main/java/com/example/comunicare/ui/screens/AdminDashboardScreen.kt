@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.comunicare.domain.model.RequestStatus
 import com.example.comunicare.ui.components.HelpRequestCard
 import com.example.comunicare.ui.components.ScreenHeader
 import com.example.comunicare.ui.viewmodel.HelpViewModel
@@ -19,6 +20,7 @@ fun AdminDashboardScreen(
     onNavigateToChat: (String) -> Unit
 ) {
     val requests by viewModel.requests.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
@@ -51,13 +53,19 @@ fun AdminDashboardScreen(
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             items(requests) { request ->
+                // RA4 - Control de permisos en la UI
+                val isMine = request.assignedVolunteerId == currentUser?.id
+                
                 HelpRequestCard(
                     request = request,
                     isAdmin = true,
+                    isAssignedToMe = isMine,
                     onStatusChange = { newStatus ->
                         viewModel.updateStatus(request.id, newStatus)
                     },
-                    onChatClick = { onNavigateToChat(request.id) }
+                    onChatClick = if (isMine) {
+                        { onNavigateToChat(request.id) }
+                    } else null
                 )
             }
         }

@@ -15,6 +15,9 @@ interface HelpRequestDao {
     @Query("UPDATE help_requests SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: String, status: String)
 
+    @Query("UPDATE help_requests SET status = :status, assignedVolunteerId = :volunteerId WHERE id = :id")
+    suspend fun assignRequest(id: String, status: String, volunteerId: String)
+
     @Query("DELETE FROM help_requests WHERE id = :id")
     suspend fun deleteRequest(id: String)
 }

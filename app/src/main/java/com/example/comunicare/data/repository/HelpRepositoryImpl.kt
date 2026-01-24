@@ -1,5 +1,6 @@
 package com.example.comunicare.data.repository
 
+import android.content.Context
 import com.example.comunicare.data.local.dao.ChatMessageDao
 import com.example.comunicare.data.local.dao.HelpRequestDao
 import com.example.comunicare.data.local.dao.UserDao
@@ -17,8 +18,11 @@ import kotlinx.coroutines.flow.map
 class HelpRepositoryImpl(
     private val helpRequestDao: HelpRequestDao,
     private val chatMessageDao: ChatMessageDao,
-    private val userDao: UserDao
+    private val userDao: UserDao,
+    context: Context
 ) : HelpRepository {
+
+    private val prefs = context.getSharedPreferences("comunicare_prefs", Context.MODE_PRIVATE)
 
     override fun getRequests(): Flow<List<HelpRequest>> {
         return helpRequestDao.getAllRequests().map { entities ->
@@ -32,6 +36,10 @@ class HelpRepositoryImpl(
 
     override suspend fun updateRequestStatus(requestId: String, status: RequestStatus) {
         helpRequestDao.updateStatus(requestId, status.name)
+    }
+
+    override suspend fun assignRequest(requestId: String, status: RequestStatus, volunteerId: String) {
+        helpRequestDao.assignRequest(requestId, status.name, volunteerId)
     }
 
     override suspend fun deleteRequest(requestId: String) {
@@ -52,7 +60,23 @@ class HelpRepositoryImpl(
         return userDao.getUserByName(name)?.toDomain()
     }
 
+    override suspend fun getUserById(id: String): User? {
+        return userDao.getUserById(id)?.toDomain()
+    }
+
     override suspend fun saveUser(user: User) {
         userDao.insertUser(UserEntity.fromDomain(user))
+    }
+
+    override suspend fun saveSession(userId: String) {
+        prefs.edit().putString("saved_user_id", userId).apply()
+    }
+
+    override suspend fun getSavedSession(): String? {
+        return prefs.getString("saved_user_id", null)
+    }
+
+    override suspend fun clearSession() {
+        prefs.edit().remove("saved_user_id").apply()
     }
 }
