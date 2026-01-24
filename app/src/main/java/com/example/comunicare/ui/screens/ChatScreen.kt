@@ -35,6 +35,7 @@ import com.example.comunicare.domain.model.MessageType
 import com.example.comunicare.ui.components.ScreenHeader
 import com.example.comunicare.ui.viewmodel.HelpViewModel
 import java.io.File
+import androidx.core.net.toUri
 
 @Composable
 fun ChatScreen(
@@ -87,7 +88,7 @@ fun ChatScreen(
             }
             mediaRecorder = recorder
             isRecording = true
-        } catch (e: Exception) { Toast.makeText(context, "Error al grabar", Toast.LENGTH_SHORT).show() }
+        } catch (_: Exception) { Toast.makeText(context, "Error al grabar", Toast.LENGTH_SHORT).show() }
     }
 
     fun stopRecording() {
@@ -197,11 +198,11 @@ fun ChatBubble(message: ChatMessage, isMine: Boolean) {
                         IconButton(onClick = {
                             try {
                                 MediaPlayer().apply {
-                                    setDataSource(context, Uri.parse(message.content))
+                                    setDataSource(context, message.content.toUri())
                                     prepare()
                                     start()
                                 }
-                            } catch (e: Exception) { Toast.makeText(context, "Error al reproducir", Toast.LENGTH_SHORT).show() }
+                            } catch (_: Exception) { Toast.makeText(context, "Error al reproducir", Toast.LENGTH_SHORT).show() }
                         }) { Icon(Icons.Default.PlayArrow, contentDescription = null) }
                         Text("Audio enviado", style = MaterialTheme.typography.bodySmall)
                     }

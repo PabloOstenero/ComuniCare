@@ -10,6 +10,7 @@ data class UserEntity(
     @PrimaryKey val id: String,
     val name: String,
     val password: String,
+    val phoneNumber: String,
     val role: String,
     val recoveryHint: String,
     val trustedContactId: String?
@@ -19,6 +20,7 @@ data class UserEntity(
             id = id,
             name = name,
             password = password,
+            phoneNumber = phoneNumber,
             role = UserRole.valueOf(role),
             recoveryHint = recoveryHint,
             trustedContactId = trustedContactId
@@ -31,6 +33,7 @@ data class UserEntity(
                 id = domain.id,
                 name = domain.name,
                 password = domain.password,
+                phoneNumber = domain.phoneNumber,
                 role = domain.role.name,
                 recoveryHint = domain.recoveryHint,
                 trustedContactId = domain.trustedContactId

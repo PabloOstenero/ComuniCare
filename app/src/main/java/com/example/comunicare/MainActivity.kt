@@ -40,11 +40,17 @@ import com.example.comunicare.ui.viewmodel.HelpViewModelFactory
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+/**
+ * MainActivity: Punto de entrada de la aplicación.
+ * Gestiona la navegación principal, el menú lateral y los permisos de notificaciones (RA8).
+ * Implementa persistencia de sesión para que la cuenta siga abierta tras cerrar la app (RA6.d).
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
+        // Inicialización de la base de datos local Room (v10)
         val database = AppDatabase.getDatabase(this)
         val repository = HelpRepositoryImpl(
             helpRequestDao = database.helpRequestDao(),
@@ -62,49 +68,60 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
                 
+                // Observamos el estado de carga de la sesión
                 val isSessionLoaded by viewModel.isSessionLoaded.collectAsState()
                 val currentUser by viewModel.currentUser.collectAsState()
                 
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // RA8 - Permisos de notificación para Android 13+
+                // RA8 - Manejo de permisos para notificaciones locales
                 val permissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
-                ) { }
+                ) { isGranted ->
+                    if (!isGranted) {
+                        // Opcional: Feedback si no acepta
+                    }
+                }
 
                 LaunchedEffect(Unit) {
+                    // Solicitar permiso en Android 13+
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
                     
+                    // Escucha activa de eventos de notificación disparados desde el ViewModel
                     viewModel.notificationEvent.collectLatest { (title, message) ->
                         NotificationHelper.showNotification(context, title, message)
                     }
                 }
 
                 if (!isSessionLoaded) {
-                    // Pantalla de carga mientras se recupera la sesión (RA4.h)
+                    // Pantalla de carga inicial (RA4.h)
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 } else {
                     ModalNavigationDrawer(
                         drawerState = drawerState,
-                        gesturesEnabled = currentRoute != null && currentRoute != "login" && !currentRoute.startsWith("chat"),
+                        // El menú solo está disponible si el usuario está logueado y no está en el chat
+                        gesturesEnabled = currentUser != null && !currentRoute.isNullOrEmpty() && 
+                                         currentRoute != "login" && currentRoute != "register" && 
+                                         !currentRoute.startsWith("chat"),
                         drawerContent = {
                             ModalDrawerSheet {
                                 Text("ComuniCare", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.headlineSmall)
                                 if (currentUser != null) {
                                     Text(
-                                        text = "Usuario: ${currentUser?.name}",
+                                        text = "Usuario: ${currentUser?.name} (${if(currentUser?.role == UserRole.ADMIN) "Admin" else "Beneficiario"})",
                                         modifier = Modifier.padding(horizontal = 16.dp),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                
                                 NavigationDrawerItem(
                                     label = { Text("Inicio") },
                                     selected = false,
@@ -124,6 +141,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 )
+                                
                                 NavigationDrawerItem(
                                     label = { Text("Contacto de Confianza") },
                                     selected = false,
@@ -133,6 +151,7 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("trusted_contact")
                                     }
                                 )
+                                
                                 NavigationDrawerItem(
                                     label = { Text("Ayuda / Manual") },
                                     selected = false,
@@ -142,7 +161,9 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("help")
                                     }
                                 )
+                                
                                 Spacer(modifier = Modifier.weight(1f))
+                                
                                 NavigationDrawerItem(
                                     label = { Text("Cerrar sesión") },
                                     selected = false,
@@ -150,7 +171,9 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         scope.launch { drawerState.close() }
                                         viewModel.logout()
-                                        navController.navigate("login") { popUpTo(0) }
+                                        navController.navigate("login") {
+                                            popUpTo(0)
+                                        }
                                     }
                                 )
                             }
@@ -160,7 +183,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             contentWindowInsets = WindowInsets.systemBars
                         ) { innerPadding ->
-                            // El startDestination se decide según si hay un usuario cargado (RA6.d)
+                            // El startDestination se decide según si hay una sesión guardada
                             val startDestination = if (currentUser != null) {
                                 if (currentUser?.role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
                             } else {
@@ -175,16 +198,32 @@ class MainActivity : ComponentActivity() {
                                 composable("login") {
                                     LoginScreen(
                                         viewModel = viewModel,
-                                        onLoginSuccess = { username, password, role ->
-                                            viewModel.login(username, password, role) { user ->
-                                                if (user.role == UserRole.ADMIN) {
-                                                    navController.navigate("admin_dashboard") {
-                                                        popUpTo("login") { inclusive = true }
-                                                    }
-                                                } else {
-                                                    navController.navigate("beneficiary_home") {
-                                                        popUpTo("login") { inclusive = true }
-                                                    }
+                                        onNavigateToRegister = { navController.navigate("register") },
+                                        onLoginSuccess = { role ->
+                                            if (role == UserRole.ADMIN) {
+                                                navController.navigate("admin_dashboard") {
+                                                    popUpTo("login") { inclusive = true }
+                                                }
+                                            } else {
+                                                navController.navigate("beneficiary_home") {
+                                                    popUpTo("login") { inclusive = true }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                composable("register") {
+                                    RegisterScreen(
+                                        viewModel = viewModel,
+                                        onBack = { navController.popBackStack() },
+                                        onRegisterSuccess = { role ->
+                                            if (role == UserRole.ADMIN) {
+                                                navController.navigate("admin_dashboard") {
+                                                    popUpTo("login") { inclusive = true }
+                                                }
+                                            } else {
+                                                navController.navigate("beneficiary_home") {
+                                                    popUpTo("login") { inclusive = true }
                                                 }
                                             }
                                         }

@@ -14,6 +14,7 @@ import com.example.comunicare.domain.model.User
 import com.example.comunicare.domain.repository.HelpRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import androidx.core.content.edit
 
 class HelpRepositoryImpl(
     private val helpRequestDao: HelpRequestDao,
@@ -60,6 +61,10 @@ class HelpRepositoryImpl(
         return userDao.getUserByName(name)?.toDomain()
     }
 
+    override suspend fun getUserByPhoneNumber(phoneNumber: String): User? {
+        return userDao.getUserByPhoneNumber(phoneNumber)?.toDomain()
+    }
+
     override suspend fun getUserById(id: String): User? {
         return userDao.getUserById(id)?.toDomain()
     }
@@ -69,7 +74,7 @@ class HelpRepositoryImpl(
     }
 
     override suspend fun saveSession(userId: String) {
-        prefs.edit().putString("saved_user_id", userId).apply()
+        prefs.edit { putString("saved_user_id", userId) }
     }
 
     override suspend fun getSavedSession(): String? {
@@ -77,6 +82,6 @@ class HelpRepositoryImpl(
     }
 
     override suspend fun clearSession() {
-        prefs.edit().remove("saved_user_id").apply()
+        prefs.edit { remove("saved_user_id") }
     }
 }

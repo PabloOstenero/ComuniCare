@@ -13,7 +13,7 @@ import com.example.comunicare.data.local.entity.UserEntity
 
 @Database(
     entities = [HelpRequestEntity::class, ChatMessageEntity::class, UserEntity::class],
-    version = 7, // Subimos a la versión 7
+    version = 10, // Subimos a la versión 10 para garantizar un esquema limpio
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,7 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "comunicare_db_v7" // Cambiamos el nombre para un inicio limpio
+                    "comunicare_db_v10" // Nuevo nombre para evitar conflictos previos
                 )
                 .fallbackToDestructiveMigration()
                 .build()

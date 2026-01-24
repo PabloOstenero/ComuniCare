@@ -17,6 +17,7 @@ class HelpViewModelFactory(private val repository: HelpRepository) : ViewModelPr
                 getChatMessagesUseCase = GetChatMessagesUseCase(repository),
                 sendMessageUseCase = SendMessageUseCase(repository),
                 getUserUseCase = GetUserUseCase(repository),
+                getUserByPhoneNumberUseCase = GetUserByPhoneNumberUseCase(repository),
                 saveUserUseCase = SaveUserUseCase(repository),
                 getSavedSessionUseCase = GetSavedSessionUseCase(repository),
                 saveSessionUseCase = SaveSessionUseCase(repository),

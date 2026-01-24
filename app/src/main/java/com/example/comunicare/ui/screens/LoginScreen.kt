@@ -1,8 +1,8 @@
 package com.example.comunicare.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -21,14 +22,14 @@ import com.example.comunicare.ui.viewmodel.HelpViewModel
 @Composable
 fun LoginScreen(
     viewModel: HelpViewModel,
-    onLoginSuccess: (String, String, UserRole) -> Unit
+    onNavigateToRegister: () -> Unit,
+    onLoginSuccess: (UserRole) -> Unit
 ) {
-    var username by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var verificationCode by remember { mutableStateOf("") }
     var isRecoveryMode by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
-    var selectedRole by remember { mutableStateOf(UserRole.BENEFICIARY) }
     
     val loginError by viewModel.loginError.collectAsState()
     val recoveryHint by viewModel.recoveryHint.collectAsState()
@@ -53,12 +54,13 @@ fun LoginScreen(
         )
 
         OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text("Nombre de usuario") },
+            value = phoneNumber,
+            onValueChange = { phoneNumber = it },
+            label = { Text("Número de teléfono") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             enabled = !isRecoveryMode
         )
 
@@ -88,7 +90,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true,
-                placeholder = { Text("Introduce el código que recibió tu contacto") }
+                placeholder = { Text("Introduce el código") }
             )
         }
 
@@ -103,42 +105,30 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (!isRecoveryMode) {
-            Text(text = "¿Cómo quieres entrar?", style = MaterialTheme.typography.titleMedium)
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { selectedRole = UserRole.BENEFICIARY }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(selected = selectedRole == UserRole.BENEFICIARY, onClick = { selectedRole = UserRole.BENEFICIARY })
-                Text("Entrar como Usuario (Beneficiario)", modifier = Modifier.padding(start = 8.dp))
-            }
-            
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { selectedRole = UserRole.ADMIN }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(selected = selectedRole == UserRole.ADMIN, onClick = { selectedRole = UserRole.ADMIN })
-                Text("Entrar como Administrador", modifier = Modifier.padding(start = 8.dp))
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
             AccessibleButton(
-                text = "Entrar / Registrarse",
-                onClick = { onLoginSuccess(username, password, selectedRole) },
-                enabled = username.isNotBlank() && password.isNotBlank()
+                text = "Entrar",
+                onClick = { 
+                    viewModel.login(phoneNumber, password) { user ->
+                        onLoginSuccess(user.role)
+                    }
+                },
+                enabled = phoneNumber.isNotBlank() && password.isNotBlank()
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = onNavigateToRegister,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("¿No tienes cuenta? Regístrate")
+            }
 
             TextButton(
                 onClick = { 
-                    if (username.isNotBlank()) {
-                        viewModel.requestRecovery(username)
+                    if (phoneNumber.isNotBlank()) {
+                        viewModel.requestRecovery(phoneNumber)
                         isRecoveryMode = true
                     }
                 },
@@ -150,9 +140,8 @@ fun LoginScreen(
             AccessibleButton(
                 text = "Verificar Código",
                 onClick = { 
-                    // Llamamos a la lógica del ViewModel para verificar el código aleatorio real
-                    viewModel.verifyRecoveryCode(username, verificationCode) { user ->
-                        onLoginSuccess(user.name, user.password, user.role)
+                    viewModel.verifyRecoveryCode(phoneNumber, verificationCode) { user ->
+                        onLoginSuccess(user.role)
                     }
                 },
                 enabled = verificationCode.isNotBlank()
@@ -162,7 +151,7 @@ fun LoginScreen(
                 onClick = { isRecoveryMode = false },
                 modifier = Modifier.padding(top = 8.dp)
             ) {
-                Text("Volver al login normal")
+                Text("Volver al inicio")
             }
         }
 

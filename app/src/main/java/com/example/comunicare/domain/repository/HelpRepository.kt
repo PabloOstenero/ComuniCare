@@ -19,6 +19,7 @@ interface HelpRepository {
 
     // User management
     suspend fun getUserByName(name: String): User?
+    suspend fun getUserByPhoneNumber(phoneNumber: String): User?
     suspend fun getUserById(id: String): User?
     suspend fun saveUser(user: User)
     
