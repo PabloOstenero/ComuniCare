@@ -9,6 +9,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * ViewModel central de la aplicación ComuniCare.
+ * Gestiona el estado global, la autenticación, las solicitudes de ayuda, la mensajería y la persistencia de sesión.
+ */
 class HelpViewModel(
     private val getHelpRequestsUseCase: GetHelpRequestsUseCase,
     private val addHelpRequestUseCase: AddHelpRequestUseCase,
@@ -16,17 +20,20 @@ class HelpViewModel(
     private val assignHelpRequestUseCase: AssignHelpRequestUseCase,
     private val getChatMessagesUseCase: GetChatMessagesUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
-    private val getUserUseCase: GetUserUseCase,
     private val getUserByPhoneNumberUseCase: GetUserByPhoneNumberUseCase,
     private val saveUserUseCase: SaveUserUseCase,
     private val getSavedSessionUseCase: GetSavedSessionUseCase,
     private val saveSessionUseCase: SaveSessionUseCase,
     private val clearSessionUseCase: ClearSessionUseCase,
-    private val getUserByIdUseCase: GetUserByIdUseCase
+    private val getUserByIdUseCase: GetUserByIdUseCase,
+    private val getUserUseCase: GetUserUseCase // Para compatibilidad
 ) : ViewModel() {
 
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+
+    private val _trustedContactName = MutableStateFlow<String?>(null)
+    val trustedContactName: StateFlow<String?> = _trustedContactName.asStateFlow()
 
     private val _isSessionLoaded = MutableStateFlow(false)
     val isSessionLoaded: StateFlow<Boolean> = _isSessionLoaded.asStateFlow()
@@ -56,6 +63,7 @@ class HelpViewModel(
 
     init {
         loadSavedSession()
+        
         viewModelScope.launch {
             allRequests.collect { list ->
                 val user = _currentUser.value
@@ -66,6 +74,18 @@ class HelpViewModel(
                             notifiedEmergencyIds.add(req.id)
                         }
                     }
+                }
+            }
+        }
+
+        // Observar cambios en el usuario para cargar el nombre del contacto de confianza
+        viewModelScope.launch {
+            currentUser.collect { user ->
+                if (user?.trustedContactId != null) {
+                    val contact = getUserByIdUseCase(user.trustedContactId)
+                    _trustedContactName.value = contact?.name ?: "Desconocido"
+                } else {
+                    _trustedContactName.value = null
                 }
             }
         }
@@ -126,7 +146,7 @@ class HelpViewModel(
                 val code = (1000..9999).random().toString()
                 val req = HelpRequest(beneficiaryId = user.id, beneficiaryName = user.name, type = HelpType.RECOVERY, description = "Código: $code", assignedVolunteerId = user.trustedContactId)
                 addHelpRequestUseCase(req)
-                _recoveryHint.value = "Aviso enviado al contacto."
+                _recoveryHint.value = "Aviso enviado al contacto de confianza."
             }
         }
     }
@@ -140,6 +160,23 @@ class HelpViewModel(
                 saveSessionUseCase(user.id)
                 withContext(Dispatchers.Main) { onComplete(user) }
             } else { _loginError.value = "Código inválido" }
+        }
+    }
+
+    fun updateTrustedContact(phoneNumber: String) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            try {
+                val contact = getUserByPhoneNumberUseCase(phoneNumber)
+                if (contact != null) {
+                    val updatedUser = user.copy(trustedContactId = contact.id)
+                    saveUserUseCase(updatedUser)
+                    _currentUser.value = updatedUser
+                    _trustedContactName.value = contact.name
+                } else {
+                    // Opcional: Feedback de contacto no encontrado
+                }
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
@@ -182,15 +219,6 @@ class HelpViewModel(
                 c.contains("ayuda") -> sendEmergencyAlert()
                 else -> requestHelp(HelpType.OTHER, "Pedido voz: $cmd")
             }
-        }
-    }
-
-    fun updateTrustedContact(name: String) {
-        val user = _currentUser.value ?: return
-        viewModelScope.launch {
-            val updated = user.copy(trustedContactId = if(name.startsWith("admin_")) name else "admin_$name")
-            saveUserUseCase(updated)
-            _currentUser.value = updated
         }
     }
 }

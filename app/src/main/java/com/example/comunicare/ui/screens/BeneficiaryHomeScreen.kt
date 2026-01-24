@@ -26,11 +26,6 @@ import com.example.comunicare.ui.components.ScreenHeader
 import com.example.comunicare.ui.viewmodel.HelpViewModel
 import kotlinx.coroutines.launch
 
-/**
- * Main screen for the beneficiary user.
- * Prioritizes accessibility with large buttons and clear labels (RA4).
- * Includes REAL NUI Interaction (RA2.c) via Speech-to-Text.
- */
 @Composable
 fun BeneficiaryHomeScreen(
     viewModel: HelpViewModel,
@@ -44,18 +39,14 @@ fun BeneficiaryHomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // RA2.c - Launcher para el reconocimiento de voz real del sistema
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val data = result.data
-            val spokenText = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
             if (spokenText.isNotBlank()) {
                 viewModel.processVoiceCommand(spokenText)
-                scope.launch {
-                    snackbarHostState.showSnackbar("Has dicho: \"$spokenText\"")
-                }
+                scope.launch { snackbarHostState.showSnackbar("Procesando: \"$spokenText\"") }
             }
         }
     }
@@ -63,31 +54,21 @@ fun BeneficiaryHomeScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            // Botón para activar el micrófono real
             FloatingActionButton(
                 onClick = {
                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Diga qué necesita (ej: 'Necesito comida')")
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "¿En qué puedo ayudarte?")
                     }
-                    try {
-                        speechLauncher.launch(intent)
-                    } catch (_: Exception) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("El reconocimiento de voz no está disponible en este dispositivo.")
-                        }
-                    }
+                    try { speechLauncher.launch(intent) } catch (_: Exception) {}
                 },
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-            ) {
-                Icon(Icons.Default.Mic, contentDescription = "Hablar")
-            }
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            ) { Icon(Icons.Default.Mic, contentDescription = "Voz") }
         },
         topBar = {
             ScreenHeader(
                 title = "Mi Ayuda",
-                onMenuClick = onOpenMenu
+                onMenuClick = onOpenMenu // Corregido el nombre del parámetro
             )
         }
     ) { innerPadding ->
@@ -101,62 +82,33 @@ fun BeneficiaryHomeScreen(
         ) {
             item {
                 Text(
-                    text = "¿En qué podemos ayudarte, ${currentUser?.name}?",
+                    text = "Hola, ${currentUser?.name}",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    fontWeight = FontWeight.Bold
                 )
             }
             
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CategoryButton("Comida", HelpType.SHOPPING, viewModel, Modifier.weight(1f))
                     CategoryButton("Salud", HelpType.MEDICATION, viewModel, Modifier.weight(1f))
                 }
             }
             
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CategoryButton("Paseo", HelpType.ACCOMPANIMENT, viewModel, Modifier.weight(1f))
                     CategoryButton("Otros", HelpType.OTHER, viewModel, Modifier.weight(1f))
                 }
             }
 
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                // RA4.d - Acción crítica destacada
                 AccessibleButton(
-                    text = "¡BOTÓN DE EMERGENCIA!",
+                    text = "¡EMERGENCIA!",
                     onClick = { viewModel.sendEmergencyAlert() },
                     containerColor = Color(0xFFD32F2F),
                     contentColor = Color.White
                 )
-            }
-
-            item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-                Text(
-                    text = "Mis solicitudes actuales:",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            if (myRequests.isEmpty()) {
-                item {
-                    Text(
-                        text = "No tienes avisos activos.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
             }
 
             items(myRequests) { request ->
@@ -170,30 +122,15 @@ fun BeneficiaryHomeScreen(
 }
 
 @Composable
-fun CategoryButton(
-    label: String,
-    type: HelpType,
-    viewModel: HelpViewModel,
-    modifier: Modifier = Modifier
-) {
+fun CategoryButton(label: String, type: HelpType, viewModel: HelpViewModel, modifier: Modifier = Modifier) {
     Surface(
         onClick = { viewModel.requestHelp(type, "Solicitud de $label") },
-        modifier = modifier.height(110.dp),
+        modifier = modifier.height(100.dp),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shadowElevation = 2.dp
+        color = MaterialTheme.colorScheme.secondaryContainer
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = label, 
-                fontSize = 20.sp, 
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
-            )
+        Box(contentAlignment = Alignment.Center) {
+            Text(text = label, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

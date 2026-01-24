@@ -78,11 +78,7 @@ class MainActivity : ComponentActivity() {
                 // RA8 - Manejo de permisos para notificaciones locales
                 val permissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    if (!isGranted) {
-                        // Opcional: Feedback si no acepta
-                    }
-                }
+                ) {  }
 
                 LaunchedEffect(Unit) {
                     // Solicitar permiso en Android 13+
@@ -106,7 +102,6 @@ class MainActivity : ComponentActivity() {
                 } else {
                     ModalNavigationDrawer(
                         drawerState = drawerState,
-                        // El menú solo está disponible si el usuario está logueado y no está en el chat
                         gesturesEnabled = currentUser != null && !currentRoute.isNullOrEmpty() && 
                                          currentRoute != "login" && currentRoute != "register" && 
                                          !currentRoute.startsWith("chat"),
@@ -181,9 +176,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),
-                            contentWindowInsets = WindowInsets.systemBars
+                            contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
                         ) { innerPadding ->
-                            // El startDestination se decide según si hay una sesión guardada
                             val startDestination = if (currentUser != null) {
                                 if (currentUser?.role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
                             } else {
@@ -193,21 +187,18 @@ class MainActivity : ComponentActivity() {
                             NavHost(
                                 navController = navController,
                                 startDestination = startDestination,
-                                modifier = Modifier.fillMaxSize().padding(innerPadding)
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
                             ) {
                                 composable("login") {
                                     LoginScreen(
                                         viewModel = viewModel,
                                         onNavigateToRegister = { navController.navigate("register") },
                                         onLoginSuccess = { role ->
-                                            if (role == UserRole.ADMIN) {
-                                                navController.navigate("admin_dashboard") {
-                                                    popUpTo("login") { inclusive = true }
-                                                }
-                                            } else {
-                                                navController.navigate("beneficiary_home") {
-                                                    popUpTo("login") { inclusive = true }
-                                                }
+                                            val dest = if (role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
+                                            navController.navigate(dest) {
+                                                popUpTo("login") { inclusive = true }
                                             }
                                         }
                                     )
@@ -217,14 +208,9 @@ class MainActivity : ComponentActivity() {
                                         viewModel = viewModel,
                                         onBack = { navController.popBackStack() },
                                         onRegisterSuccess = { role ->
-                                            if (role == UserRole.ADMIN) {
-                                                navController.navigate("admin_dashboard") {
-                                                    popUpTo("login") { inclusive = true }
-                                                }
-                                            } else {
-                                                navController.navigate("beneficiary_home") {
-                                                    popUpTo("login") { inclusive = true }
-                                                }
+                                            val dest = if (role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
+                                            navController.navigate(dest) {
+                                                popUpTo("login") { inclusive = true }
                                             }
                                         }
                                     )

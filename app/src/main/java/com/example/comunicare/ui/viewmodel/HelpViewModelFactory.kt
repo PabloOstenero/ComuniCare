@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.comunicare.domain.repository.HelpRepository
 import com.example.comunicare.domain.use_case.*
 
+/**
+ * Factory para instanciar el HelpViewModel con todas sus dependencias.
+ * RA3.b - Componente de arquitectura para inyección de dependencias manual.
+ */
 class HelpViewModelFactory(private val repository: HelpRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HelpViewModel::class.java)) {
@@ -16,13 +20,13 @@ class HelpViewModelFactory(private val repository: HelpRepository) : ViewModelPr
                 assignHelpRequestUseCase = AssignHelpRequestUseCase(repository),
                 getChatMessagesUseCase = GetChatMessagesUseCase(repository),
                 sendMessageUseCase = SendMessageUseCase(repository),
-                getUserUseCase = GetUserUseCase(repository),
                 getUserByPhoneNumberUseCase = GetUserByPhoneNumberUseCase(repository),
                 saveUserUseCase = SaveUserUseCase(repository),
                 getSavedSessionUseCase = GetSavedSessionUseCase(repository),
                 saveSessionUseCase = SaveSessionUseCase(repository),
                 clearSessionUseCase = ClearSessionUseCase(repository),
-                getUserByIdUseCase = GetUserByIdUseCase(repository)
+                getUserByIdUseCase = GetUserByIdUseCase(repository),
+                getUserUseCase = GetUserUseCase(repository) // Añadido para coincidir con el constructor
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
