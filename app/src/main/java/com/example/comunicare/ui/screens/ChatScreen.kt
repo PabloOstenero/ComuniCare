@@ -42,9 +42,9 @@ import java.io.File
 import androidx.core.net.toUri
 
 /**
- * Pantalla de Chat con distribución optimizada estilo WhatsApp.
- * RA4.e - Jerarquía y distribución de controles perfecta.
- * Corrige el posicionamiento del teclado eliminando huecos y elevaciones excesivas.
+ * Chat Screen with WhatsApp-style distribution.
+ * Perfectly aligned action button and corrected keyboard positioning (RA4.e).
+ * RA2.c - Real multimedia hardware integration.
  */
 @Composable
 fun ChatScreen(
@@ -59,7 +59,7 @@ fun ChatScreen(
     var messageText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    // --- MULTIMEDIA ---
+    // --- MULTIMEDIA HANDLERS ---
     var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) tempPhotoUri?.let { viewModel.sendMessage(requestId, it.toString(), MessageType.IMAGE) }
@@ -75,14 +75,14 @@ fun ChatScreen(
         try {
             val file = File(context.cacheDir, "record_${System.currentTimeMillis()}.mp3")
             audioFile = file
+            @Suppress("DEPRECATION")
             val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
             recorder.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setOutputFile(file.absolutePath)
-                prepare()
-                start()
+                prepare(); start()
             }
             mediaRecorder = recorder
             isRecording = true
@@ -108,14 +108,14 @@ fun ChatScreen(
                 tonalElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding() // Respeta la barra del sistema
-                    .imePadding() // Se pega al teclado perfectamente
+                    // Fix: windowInsetsPadding only on Bottom to avoid excessive elevation
+                    .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars).only(WindowInsetsSides.Bottom))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically // Alineación central corregida
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.Bottom // WhatsApp style: aligns to bottom when text grows
                 ) {
                     // Burbuja de entrada principal
                     Row(
@@ -123,7 +123,7 @@ fun ChatScreen(
                             .weight(1f)
                             .clip(RoundedCornerShape(28.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextField(
@@ -161,7 +161,7 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Botón circular de acción (Audio/Enviar) perfectamente alineado
+                    // Botón circular de acción (Audio/Enviar) - ALINEADO AL FINAL (RA4.e)
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -191,15 +191,17 @@ fun ChatScreen(
                     }
                 }
             }
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             items(messages) { message -> ChatBubble(message = message, isMine = message.senderId == currentUserId) }
         }
@@ -243,7 +245,7 @@ fun ChatBubble(message: ChatMessage, isMine: Boolean) {
                                 }
                             } catch (_: Exception) { Toast.makeText(context, "Error al reproducir", Toast.LENGTH_SHORT).show() }
                         }) { Icon(Icons.Default.PlayArrow, contentDescription = "Reproducir") }
-                        Text("Audio enviado", style = MaterialTheme.typography.bodySmall)
+                        Text("Mensaje de voz", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

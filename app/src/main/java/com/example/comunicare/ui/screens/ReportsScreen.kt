@@ -8,7 +8,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -103,8 +102,7 @@ fun ReportsScreen(viewModel: HelpViewModel) {
             
             // Grid de KPIs Principales (RA5.d)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                KpiCard("Total Avisos", totalGlobal.toString(),
-                    Icons.AutoMirrored.Filled.FactCheck, Modifier.weight(1f))
+                KpiCard("Total Solicitudes", totalGlobal.toString(), Icons.Default.FactCheck, Modifier.weight(1f))
                 KpiCard("Alertas Críticas", emergencyGlobal.toString(), Icons.AutoMirrored.Filled.TrendingUp, Modifier.weight(1f), Color.Red)
             }
             Spacer(modifier = Modifier.height(12.dp))

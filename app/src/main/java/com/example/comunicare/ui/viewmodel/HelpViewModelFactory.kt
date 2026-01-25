@@ -7,7 +7,7 @@ import com.example.comunicare.domain.use_case.*
 
 /**
  * Factory para instanciar el HelpViewModel con todas sus dependencias.
- * RA3.b - Componente de arquitectura para inyección de dependencias manual.
+ * RA3.b - Componente de arquitectura que facilita la inyección de dependencias manual.
  */
 class HelpViewModelFactory(private val repository: HelpRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -26,7 +26,7 @@ class HelpViewModelFactory(private val repository: HelpRepository) : ViewModelPr
                 saveSessionUseCase = SaveSessionUseCase(repository),
                 clearSessionUseCase = ClearSessionUseCase(repository),
                 getUserByIdUseCase = GetUserByIdUseCase(repository),
-                getUserUseCase = GetUserUseCase(repository) // Añadido para coincidir con el constructor
+                getUserUseCase = GetUserUseCase(repository)
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")

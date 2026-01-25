@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
                 // RA8 - Manejo de permisos para notificaciones locales
                 val permissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
-                ) {  }
+                ) { }
 
                 LaunchedEffect(Unit) {
                     // Solicitar permiso en Android 13+
@@ -95,13 +95,14 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (!isSessionLoaded) {
-                    // Pantalla de carga inicial (RA4.h)
+                    // Pantalla de carga inicial mientras se recupera la sesión (RA4.h)
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 } else {
                     ModalNavigationDrawer(
                         drawerState = drawerState,
+                        // El menú solo está disponible si el usuario está logueado y no está en pantallas de auth
                         gesturesEnabled = currentUser != null && !currentRoute.isNullOrEmpty() && 
                                          currentRoute != "login" && currentRoute != "register" && 
                                          !currentRoute.startsWith("chat"),
@@ -178,6 +179,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
                         ) { innerPadding ->
+                            // El startDestination se decide según si hay una sesión guardada (RA6.d)
                             val startDestination = if (currentUser != null) {
                                 if (currentUser?.role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
                             } else {

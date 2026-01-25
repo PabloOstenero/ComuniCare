@@ -8,10 +8,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.random.Random
 
 /**
  * ViewModel central de la aplicación ComuniCare.
- * Gestiona el estado global, la autenticación, las solicitudes de ayuda, la mensajería y la persistencia de sesión.
+ * Gestiona el estado global, la autenticación, las solicitudes de ayuda y la mensajería.
+ * RA1.h - Aplicación integrada y estable.
  */
 class HelpViewModel(
     private val getHelpRequestsUseCase: GetHelpRequestsUseCase,
@@ -26,7 +28,7 @@ class HelpViewModel(
     private val saveSessionUseCase: SaveSessionUseCase,
     private val clearSessionUseCase: ClearSessionUseCase,
     private val getUserByIdUseCase: GetUserByIdUseCase,
-    private val getUserUseCase: GetUserUseCase // Para compatibilidad
+    private val getUserUseCase: GetUserUseCase
 ) : ViewModel() {
 
     private val _currentUser = MutableStateFlow<User?>(null)
@@ -78,7 +80,6 @@ class HelpViewModel(
             }
         }
 
-        // Observar cambios en el usuario para cargar el nombre del contacto de confianza
         viewModelScope.launch {
             currentUser.collect { user ->
                 if (user?.trustedContactId != null) {
@@ -141,42 +142,62 @@ class HelpViewModel(
 
     fun requestRecovery(phone: String) {
         viewModelScope.launch {
-            val user = getUserByPhoneNumberUseCase(phone)
-            if (user != null && user.trustedContactId != null) {
-                val code = (1000..9999).random().toString()
-                val req = HelpRequest(beneficiaryId = user.id, beneficiaryName = user.name, type = HelpType.RECOVERY, description = "Código: $code", assignedVolunteerId = user.trustedContactId)
-                addHelpRequestUseCase(req)
-                _recoveryHint.value = "Aviso enviado al contacto de confianza."
-            }
+            try {
+                val user = getUserByPhoneNumberUseCase(phone)
+                if (user != null && user.trustedContactId != null) {
+                    // Solo mandar un código mientras no esté completado el anterior
+                    val active = allRequests.first().find { 
+                        it.beneficiaryId == user.id && it.type == HelpType.RECOVERY && it.status != RequestStatus.COMPLETED 
+                    }
+                    
+                    if (active != null) {
+                        _recoveryHint.value = "Ya tienes una solicitud de acceso activa."
+                        return@launch
+                    }
+
+                    val code = (1000..9999).random().toString()
+                    val req = HelpRequest(
+                        beneficiaryId = user.id, 
+                        beneficiaryName = user.name, 
+                        type = HelpType.RECOVERY, 
+                        description = "SOLICITUD DE ACCESO: Código de seguridad: $code", 
+                        assignedVolunteerId = user.trustedContactId
+                    )
+                    addHelpRequestUseCase(req)
+                    
+                    // Notificar al contacto de confianza (simulado RA8)
+                    _notificationEvent.emit("Solicitud de Recuperación" to "El usuario ${user.name} necesita recuperar su acceso.")
+                    _recoveryHint.value = "Aviso enviado al contacto de confianza."
+                } else {
+                    _recoveryHint.value = "No se pudo procesar la recuperación."
+                }
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
-    fun verifyRecoveryCode(phone: String, code: String, onComplete: (User) -> Unit) {
+    fun verifyRecoveryCode(phone: String, inputCode: String, onComplete: (User) -> Unit) {
         viewModelScope.launch {
             val user = getUserByPhoneNumberUseCase(phone) ?: return@launch
             val active = allRequests.first().find { it.beneficiaryId == user.id && it.type == HelpType.RECOVERY && it.status != RequestStatus.COMPLETED }
-            if (active?.description?.contains(code) == true) {
+            val validCode = active?.let { Regex("seguridad: (\\d{4})").find(it.description)?.groupValues?.get(1) }
+
+            if (validCode == inputCode && inputCode.isNotBlank()) {
                 _currentUser.value = user
                 saveSessionUseCase(user.id)
                 withContext(Dispatchers.Main) { onComplete(user) }
-            } else { _loginError.value = "Código inválido" }
+            } else { _loginError.value = "Código incorrecto" }
         }
     }
 
     fun updateTrustedContact(phoneNumber: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
-            try {
-                val contact = getUserByPhoneNumberUseCase(phoneNumber)
-                if (contact != null) {
-                    val updatedUser = user.copy(trustedContactId = contact.id)
-                    saveUserUseCase(updatedUser)
-                    _currentUser.value = updatedUser
-                    _trustedContactName.value = contact.name
-                } else {
-                    // Opcional: Feedback de contacto no encontrado
-                }
-            } catch (e: Exception) { e.printStackTrace() }
+            val contact = getUserByPhoneNumberUseCase(phoneNumber)
+            if (contact != null) {
+                val updatedUser = user.copy(trustedContactId = contact.id)
+                saveUserUseCase(updatedUser)
+                _currentUser.value = updatedUser
+            }
         }
     }
 
@@ -191,12 +212,23 @@ class HelpViewModel(
 
     fun sendEmergencyAlert() = requestHelp(HelpType.EMERGENCY, "¡SOLICITUD CRÍTICA!")
 
-    fun updateStatus(id: String, status: RequestStatus) {
+    fun updateStatus(requestId: String, status: RequestStatus) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
-            val req = allRequests.first().find { it.id == id } ?: return@launch
-            if (status == RequestStatus.ASSIGNED) assignHelpRequestUseCase(id, status, user.id)
-            else if (status == RequestStatus.COMPLETED && req.assignedVolunteerId == user.id) updateHelpRequestStatusUseCase(id, status)
+            val requestsList = allRequests.first()
+            val request = requestsList.find { it.id == requestId } ?: return@launch
+            
+            if (status == RequestStatus.ASSIGNED) {
+                assignHelpRequestUseCase(requestId, status, user.id)
+            } else if (status == RequestStatus.COMPLETED && request.assignedVolunteerId == user.id) {
+                updateHelpRequestStatusUseCase(requestId, status)
+            }
+
+            // Notificar al propietario de la cuenta cuando se valida el acceso
+            if (status == RequestStatus.ASSIGNED && request.type == HelpType.RECOVERY) {
+                val code = Regex("seguridad: (\\d{4})").find(request.description)?.groupValues?.get(1) ?: "****"
+                _notificationEvent.emit("Acceso Validado" to "Tu contacto aprobó tu entrada. Tu código es: $code")
+            }
         }
     }
 
@@ -213,12 +245,9 @@ class HelpViewModel(
     fun processVoiceCommand(cmd: String) {
         viewModelScope.launch {
             val c = cmd.lowercase()
-            when {
-                c.contains("comida") -> requestHelp(HelpType.SHOPPING, "Pedido voz: Comida")
-                c.contains("médico") -> requestHelp(HelpType.MEDICATION, "Pedido voz: Salud")
-                c.contains("ayuda") -> sendEmergencyAlert()
-                else -> requestHelp(HelpType.OTHER, "Pedido voz: $cmd")
-            }
+            if (c.contains("ayuda")) sendEmergencyAlert()
+            else if (c.contains("comida")) requestHelp(HelpType.SHOPPING, "Pedido voz")
+            else if (c.contains("médico")) requestHelp(HelpType.MEDICATION, "Pedido voz")
         }
     }
 }
