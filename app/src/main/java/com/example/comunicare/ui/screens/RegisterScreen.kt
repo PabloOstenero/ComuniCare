@@ -93,6 +93,11 @@ fun RegisterScreen(
             value = password,
             onValueChange = { password = it },
             label = { Text("Contraseña") },
+            supportingText = { 
+                if (password.isNotEmpty() && password.length < 4) {
+                    Text("Mínimo 4 caracteres", color = MaterialTheme.colorScheme.error)
+                }
+            },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
@@ -163,6 +168,7 @@ fun RegisterScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         // RA1.g: Asociación del evento de registro con la lógica del ViewModel
+        // Validación: nombre no vacío, contraseña >= 4 y teléfono >= 9
         AccessibleButton(
             text = "Registrarme",
             onClick = {
@@ -170,7 +176,7 @@ fun RegisterScreen(
                     onRegisterSuccess(selectedRole)
                 }
             },
-            enabled = username.isNotBlank() && password.isNotBlank() && phoneNumber.length >= 9
+            enabled = username.isNotBlank() && password.length >= 4 && phoneNumber.length >= 9
         )
     }
 }

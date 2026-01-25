@@ -31,7 +31,7 @@ import com.example.comunicare.ui.viewmodel.HelpViewModel
 fun LoginScreen(
     viewModel: HelpViewModel,
     onNavigateToRegister: () -> Unit,
-    onLoginSuccess: (UserRole) -> Unit
+    onLoginSuccess: (UserRole, Boolean) -> Unit // Boolean indicates if password change is needed (recovery)
 ) {
     var phoneNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -125,7 +125,7 @@ fun LoginScreen(
                 text = "Entrar",
                 onClick = { 
                     viewModel.login(phoneNumber, password) { user ->
-                        onLoginSuccess(user.role)
+                        onLoginSuccess(user.role, false)
                     }
                 },
                 enabled = phoneNumber.isNotBlank() && password.isNotBlank()
@@ -158,7 +158,7 @@ fun LoginScreen(
                 text = "Verificar Código",
                 onClick = { 
                     viewModel.verifyRecoveryCode(phoneNumber, verificationCode) { user ->
-                        onLoginSuccess(user.role)
+                        onLoginSuccess(user.role, true) // True means it's recovery mode
                     }
                 },
                 enabled = verificationCode.isNotBlank()
