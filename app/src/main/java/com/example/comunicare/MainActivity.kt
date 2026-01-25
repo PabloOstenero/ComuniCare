@@ -1,7 +1,12 @@
 package com.example.comunicare
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
@@ -17,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -37,7 +43,7 @@ import kotlinx.coroutines.launch
 
 /**
  * MainActivity: Punto de entrada de la aplicación ComuniCare.
- * Gestiona la navegación centralizada y la persistencia de sesión.
+ * Gestiona la navegación centralizada, la persistencia de sesión y los permisos de notificación (RA8).
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +72,19 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
+                // RA8 - Lanzador para solicitar permisos de notificación en Android 13+
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { }
+
                 LaunchedEffect(Unit) {
+                    // Solicitar permiso de forma proactiva al arrancar (RA8.a)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+
                     viewModel.notificationEvent.collectLatest { (title, message) ->
                         NotificationHelper.showNotification(context, title, message)
                     }
@@ -146,7 +164,6 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 composable("login") {
                                     LoginScreen(viewModel, { navController.navigate("register") }, { role, isRecovery ->
-                                        // MODIFICADO: Solo va a cambio de contraseña si viene de RECUPERACIÓN
                                         if (isRecovery) {
                                             navController.navigate("change_password")
                                         } else {
@@ -157,7 +174,6 @@ class MainActivity : ComponentActivity() {
                                 }
                                 composable("register") {
                                     RegisterScreen(viewModel, { navController.popBackStack() }, { role ->
-                                        // MODIFICADO: El registro ya establece la clave, va directo al inicio
                                         val dest = if (role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
                                         navController.navigate(dest) { popUpTo("login") { inclusive = true } }
                                     })
@@ -168,6 +184,7 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate(dest) { popUpTo("login") { inclusive = true } }
                                     }
                                 }
+                                composable("settings") { ChangePasswordScreen(viewModel) { navController.popBackStack() } }
                                 composable("beneficiary_home") { BeneficiaryHomeScreen(viewModel, { scope.launch { drawerState.open() } }, { id -> navController.navigate("chat/$id") }) }
                                 composable("admin_dashboard") { AdminDashboardScreen(viewModel, { navController.navigate("reports") }, { scope.launch { drawerState.open() } }, { id -> navController.navigate("chat/$id") }) }
                                 composable("trusted_contact") { TrustedContactScreen(viewModel) { navController.popBackStack() } }
