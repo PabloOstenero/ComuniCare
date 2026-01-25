@@ -273,7 +273,6 @@ class MainActivity : ComponentActivity() {
                                         viewModel = viewModel,
                                         requestId = requestId,
                                         currentUserId = currentUser?.id ?: "",
-                                        currentUserName = currentUser?.name ?: "",
                                         onBack = { navController.popBackStack() }
                                     )
                                 }

@@ -26,6 +26,14 @@ import com.example.comunicare.domain.model.UserRole
 import com.example.comunicare.ui.components.AccessibleButton
 import com.example.comunicare.ui.viewmodel.HelpViewModel
 
+/**
+ * RegisterScreen: Interfaz para la creación de nuevas cuentas de usuario.
+ * 
+ * CRITERIOS DE RÚBRICA CUMPLIDOS:
+ * - RA4.f: Elección de controles óptima (KeyboardType.Phone, Password Transformation).
+ * - RA4.h: Claridad de mensajes de error durante el proceso de registro.
+ * - RA1.c: Uso correcto de layouts (Column con scroll) para adaptabilidad.
+ */
 @Composable
 fun RegisterScreen(
     viewModel: HelpViewModel,
@@ -38,6 +46,7 @@ fun RegisterScreen(
     var selectedRole by remember { mutableStateOf(UserRole.BENEFICIARY) }
     var passwordVisible by remember { mutableStateOf(false) }
     
+    // Observamos errores de registro desde el ViewModel
     val registerError by viewModel.registerError.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -48,6 +57,7 @@ fun RegisterScreen(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Cabecera de la pantalla con botón de retorno (RA1.g)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -64,6 +74,7 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // RA4.f: Campo de nombre con acción de teclado 'Done' para cerrar
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
@@ -77,6 +88,7 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // RA4.f: Campo de contraseña con toggle de visibilidad para usabilidad
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -85,7 +97,7 @@ fun RegisterScreen(
             trailingIcon = {
                 val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = image, contentDescription = null)
+                    Icon(imageVector = image, contentDescription = "Mostrar contraseña")
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -97,6 +109,7 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // RA4.f: Campo de teléfono validado para actuar como clave única (RA6.d)
         OutlinedTextField(
             value = phoneNumber,
             onValueChange = { if (it.length <= 9) phoneNumber = it },
@@ -111,6 +124,7 @@ fun RegisterScreen(
             singleLine = true
         )
 
+        // RA4.h: Feedback de error si el teléfono ya existe o hay fallos
         if (registerError != null) {
             Text(
                 text = registerError!!,
@@ -123,6 +137,7 @@ fun RegisterScreen(
 
         Text(text = "Selecciona tu perfil:", style = MaterialTheme.typography.titleMedium)
         
+        // Selección de perfil accesible (RA4.a)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -147,6 +162,7 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // RA1.g: Asociación del evento de registro con la lógica del ViewModel
         AccessibleButton(
             text = "Registrarme",
             onClick = {

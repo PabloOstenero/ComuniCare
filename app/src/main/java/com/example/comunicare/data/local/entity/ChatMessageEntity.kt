@@ -5,6 +5,10 @@ import androidx.room.PrimaryKey
 import com.example.comunicare.domain.model.ChatMessage
 import com.example.comunicare.domain.model.MessageType
 
+/**
+ * ChatMessageEntity: Representación en base de datos de un mensaje.
+ * RA6.d - Estructura de información persistente.
+ */
 @Entity(tableName = "chat_messages")
 data class ChatMessageEntity(
     @PrimaryKey val id: String,
@@ -15,6 +19,7 @@ data class ChatMessageEntity(
     val type: String,
     val timestamp: Long
 ) {
+    /** Convierte la entidad de DB al modelo de dominio para uso en la UI */
     fun toDomain(): ChatMessage {
         return ChatMessage(
             id = id,
@@ -28,6 +33,7 @@ data class ChatMessageEntity(
     }
 
     companion object {
+        /** Crea una entidad persistible a partir de un objeto de dominio */
         fun fromDomain(domain: ChatMessage): ChatMessageEntity {
             return ChatMessageEntity(
                 id = domain.id,

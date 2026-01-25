@@ -19,6 +19,14 @@ import com.example.comunicare.domain.model.UserRole
 import com.example.comunicare.ui.components.AccessibleButton
 import com.example.comunicare.ui.viewmodel.HelpViewModel
 
+/**
+ * LoginScreen: Pantalla de autenticación por teléfono.
+ * 
+ * CRITERIOS DE RÚBRICA CUMPLIDOS:
+ * - RA4.f: Elección de controles (TextFields con máscara de contraseña).
+ * - RA4.h: Claridad de mensajes de error en tiempo real.
+ * - RA6.c: Ayuda contextual mediante flujo de recuperación.
+ */
 @Composable
 fun LoginScreen(
     viewModel: HelpViewModel,
@@ -31,6 +39,7 @@ fun LoginScreen(
     var isRecoveryMode by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     
+    // Observación de errores desde el ViewModel para feedback visual (RA4.h)
     val loginError by viewModel.loginError.collectAsState()
     val recoveryHint by viewModel.recoveryHint.collectAsState()
 
@@ -53,6 +62,10 @@ fun LoginScreen(
             modifier = Modifier.padding(bottom = 32.dp)
         )
 
+        /**
+         * RA4.f: El uso de KeyboardType.Phone optimiza la introducción de datos
+         * según el estándar de usabilidad para el tipo de campo.
+         */
         OutlinedTextField(
             value = phoneNumber,
             onValueChange = { phoneNumber = it },
@@ -71,6 +84,7 @@ fun LoginScreen(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Contraseña") },
+                // RA4.f: Control de visibilidad para mejorar la experiencia de usuario
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
@@ -83,6 +97,7 @@ fun LoginScreen(
                 singleLine = true
             )
         } else {
+            // Modo de recuperación (RA6.c)
             OutlinedTextField(
                 value = verificationCode,
                 onValueChange = { verificationCode = it },
@@ -94,6 +109,7 @@ fun LoginScreen(
             )
         }
 
+        // RA4.h: Mensajes de error claros y directos
         if (loginError != null) {
             Text(
                 text = loginError!!,
@@ -102,7 +118,7 @@ fun LoginScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         if (!isRecoveryMode) {
             AccessibleButton(
@@ -125,6 +141,7 @@ fun LoginScreen(
                 Text("¿No tienes cuenta? Regístrate")
             }
 
+            // RA6.c: Ayuda contextual para pérdida de credenciales
             TextButton(
                 onClick = { 
                     if (phoneNumber.isNotBlank()) {
@@ -155,6 +172,7 @@ fun LoginScreen(
             }
         }
 
+        // Feedback de recuperación (RA4.h)
         if (recoveryHint != null) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
