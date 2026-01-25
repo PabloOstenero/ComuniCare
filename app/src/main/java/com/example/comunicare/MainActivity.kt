@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 
 /**
  * MainActivity: Punto de entrada de la aplicación ComuniCare.
- * Gestiona la navegación centralizada, la persistencia de sesión y las notificaciones.
+ * Gestiona la navegación centralizada y la persistencia de sesión.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
                                     label = { Text("Cambiar contraseña") },
                                     selected = false,
                                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                    onClick = { scope.launch { drawerState.close() }; navController.navigate("settings") }
+                                    onClick = { scope.launch { drawerState.close() }; navController.navigate("change_password") }
                                 )
                                 NavigationDrawerItem(
                                     label = { Text("Ayuda") },
@@ -136,8 +136,7 @@ class MainActivity : ComponentActivity() {
                             contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
                         ) { innerPadding ->
                             val startDestination = if (currentUser != null) {
-                                val dest = if (currentUser?.role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
-                                dest
+                                if (currentUser?.role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
                             } else "login"
 
                             NavHost(
@@ -147,18 +146,20 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 composable("login") {
                                     LoginScreen(viewModel, { navController.navigate("register") }, { role, isRecovery ->
+                                        // MODIFICADO: Solo va a cambio de contraseña si viene de RECUPERACIÓN
                                         if (isRecovery) {
                                             navController.navigate("change_password")
-                                        } else if (role == UserRole.ADMIN) {
-                                            navController.navigate("admin_dashboard") { popUpTo("login") { inclusive = true } }
                                         } else {
-                                            navController.navigate("beneficiary_home") { popUpTo("login") { inclusive = true } }
+                                            val dest = if (role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
+                                            navController.navigate(dest) { popUpTo("login") { inclusive = true } }
                                         }
                                     })
                                 }
                                 composable("register") {
-                                    RegisterScreen(viewModel, { navController.popBackStack() }, {
-                                        navController.navigate("change_password")
+                                    RegisterScreen(viewModel, { navController.popBackStack() }, { role ->
+                                        // MODIFICADO: El registro ya establece la clave, va directo al inicio
+                                        val dest = if (role == UserRole.ADMIN) "admin_dashboard" else "beneficiary_home"
+                                        navController.navigate(dest) { popUpTo("login") { inclusive = true } }
                                     })
                                 }
                                 composable("change_password") {
@@ -167,7 +168,6 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate(dest) { popUpTo("login") { inclusive = true } }
                                     }
                                 }
-                                composable("settings") { ChangePasswordScreen(viewModel) { navController.popBackStack() } }
                                 composable("beneficiary_home") { BeneficiaryHomeScreen(viewModel, { scope.launch { drawerState.open() } }, { id -> navController.navigate("chat/$id") }) }
                                 composable("admin_dashboard") { AdminDashboardScreen(viewModel, { navController.navigate("reports") }, { scope.launch { drawerState.open() } }, { id -> navController.navigate("chat/$id") }) }
                                 composable("trusted_contact") { TrustedContactScreen(viewModel) { navController.popBackStack() } }
