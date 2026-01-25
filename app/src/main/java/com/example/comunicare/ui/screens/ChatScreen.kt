@@ -42,9 +42,9 @@ import java.io.File
 import androidx.core.net.toUri
 
 /**
- * Chat Screen with WhatsApp-style distribution.
- * Perfectly aligned action button and corrected keyboard positioning (RA4.e).
- * RA2.c - Real multimedia hardware integration.
+ * ChatScreen: Interfaz de comunicación bidireccional multimedia.
+ * RA2.c - Integración de hardware real (CÁMARA y MICRÓFONO).
+ * RA4.e - Distribución de controles optimizada estilo WhatsApp.
  */
 @Composable
 fun ChatScreen(
@@ -59,14 +59,29 @@ fun ChatScreen(
     var messageText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    // --- MULTIMEDIA HANDLERS ---
+    // --- GESTIÓN DE PERMISOS (RA8) ---
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
+        val audioGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: false
+        if (!cameraGranted || !audioGranted) {
+            Toast.makeText(context, "Se necesitan permisos para usar multimedia", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // --- CÁMARA (RA2.c) ---
     var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) tempPhotoUri?.let { viewModel.sendMessage(requestId, it.toString(), MessageType.IMAGE) }
     }
+
+    // --- GALERÍA ---
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.sendMessage(requestId, it.toString(), MessageType.IMAGE) }
     }
+
+    // --- AUDIO (RA2.c) ---
     var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var isRecording by remember { mutableStateOf(false) }
     var audioFile by remember { mutableStateOf<File?>(null) }
@@ -82,20 +97,30 @@ fun ChatScreen(
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setOutputFile(file.absolutePath)
-                prepare(); start()
+                prepare()
+                start()
             }
             mediaRecorder = recorder
             isRecording = true
-        } catch (_: Exception) { Toast.makeText(context, "Error al grabar", Toast.LENGTH_SHORT).show() }
+        } catch (e: Exception) { 
+            Toast.makeText(context, "Fallo al iniciar grabación", Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun stopRecording() {
         try {
-            mediaRecorder?.apply { stop(); release() }
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
             mediaRecorder = null
             isRecording = false
             audioFile?.let { viewModel.sendMessage(requestId, Uri.fromFile(it).toString(), MessageType.AUDIO) }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            mediaRecorder?.release()
+            mediaRecorder = null
+            isRecording = false
+        }
     }
 
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
@@ -103,21 +128,17 @@ fun ChatScreen(
     Scaffold(
         topBar = { ScreenHeader(title = "Chat de Ayuda", onBackClick = onBack) },
         bottomBar = {
-            // RA4.e - Barra de entrada en slot bottomBar para gestión nativa de insets
             Surface(
                 tonalElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Fix: windowInsetsPadding only on Bottom to avoid excessive elevation
                     .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars).only(WindowInsetsSides.Bottom))
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.Bottom // WhatsApp style: aligns to bottom when text grows
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Burbuja de entrada principal
+                    // Burbuja de entrada
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -134,7 +155,6 @@ fun ChatScreen(
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
@@ -152,6 +172,8 @@ fun ChatScreen(
                                     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                                     tempPhotoUri = uri
                                     cameraLauncher.launch(uri)
+                                } else {
+                                    permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
                                 }
                             }) {
                                 Icon(Icons.Default.CameraAlt, contentDescription = "Cámara", tint = Color.Gray)
@@ -161,7 +183,7 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Botón circular de acción (Audio/Enviar) - ALINEADO AL FINAL (RA4.e)
+                    // Botón circular de acción (Enviar o Micrófono)
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -172,10 +194,11 @@ fun ChatScreen(
                                     viewModel.sendMessage(requestId, messageText, MessageType.TEXT)
                                     messageText = ""
                                 } else {
-                                    if (isRecording) stopRecording() else {
-                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                            startRecording()
-                                        }
+                                    val audioPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                                    if (audioPermission == PackageManager.PERMISSION_GRANTED) {
+                                        if (isRecording) stopRecording() else startRecording()
+                                    } else {
+                                        permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA))
                                     }
                                 }
                             },
@@ -192,18 +215,17 @@ fun ChatScreen(
                 }
             }
         },
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        contentWindowInsets = WindowInsets(0,0,0,0)
     ) { innerPadding ->
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
+            contentPadding = PaddingValues(16.dp)
         ) {
-            items(messages) { message -> ChatBubble(message = message, isMine = message.senderId == currentUserId) }
+            items(messages) { message -> 
+                ChatBubble(message = message, isMine = message.senderId == currentUserId) 
+            }
         }
     }
 }

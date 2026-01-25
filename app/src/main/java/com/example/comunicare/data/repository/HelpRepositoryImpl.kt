@@ -14,8 +14,13 @@ import com.example.comunicare.domain.model.User
 import com.example.comunicare.domain.repository.HelpRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import androidx.core.content.edit
 
+/**
+ * HelpRepositoryImpl: Implementación concreta de la persistencia (RA6.d).
+ * 
+ * Actúa como puente entre la capa de dominio y la base de datos local Room.
+ * Implementa la lógica de gestión de sesiones mediante SharedPreferences.
+ */
 class HelpRepositoryImpl(
     private val helpRequestDao: HelpRequestDao,
     private val chatMessageDao: ChatMessageDao,
@@ -23,7 +28,10 @@ class HelpRepositoryImpl(
     context: Context
 ) : HelpRepository {
 
+    // RA6.d: Almacenamiento ligero para persistencia de sesión de usuario (ID de sesión)
     private val prefs = context.getSharedPreferences("comunicare_prefs", Context.MODE_PRIVATE)
+
+    // --- GESTIÓN DE SOLICITUDES (RA1.h) ---
 
     override fun getRequests(): Flow<List<HelpRequest>> {
         return helpRequestDao.getAllRequests().map { entities ->
@@ -47,6 +55,8 @@ class HelpRepositoryImpl(
         helpRequestDao.deleteRequest(requestId)
     }
 
+    // --- GESTIÓN DE MENSAJERÍA (RA2.c) ---
+
     override fun getMessagesForRequest(requestId: String): Flow<List<ChatMessage>> {
         return chatMessageDao.getMessagesForRequest(requestId).map { entities ->
             entities.map { it.toDomain() }
@@ -56,6 +66,8 @@ class HelpRepositoryImpl(
     override suspend fun sendMessage(message: ChatMessage) {
         chatMessageDao.insertMessage(ChatMessageEntity.fromDomain(message))
     }
+
+    // --- GESTIÓN DE USUARIOS Y SEGURIDAD (RA4.f) ---
 
     override suspend fun getUserByName(name: String): User? {
         return userDao.getUserByName(name)?.toDomain()
@@ -73,8 +85,10 @@ class HelpRepositoryImpl(
         userDao.insertUser(UserEntity.fromDomain(user))
     }
 
+    // --- PERSISTENCIA DE SESIÓN (RA6.d) ---
+
     override suspend fun saveSession(userId: String) {
-        prefs.edit { putString("saved_user_id", userId) }
+        prefs.edit().putString("saved_user_id", userId).apply()
     }
 
     override suspend fun getSavedSession(): String? {
@@ -82,6 +96,6 @@ class HelpRepositoryImpl(
     }
 
     override suspend fun clearSession() {
-        prefs.edit { remove("saved_user_id") }
+        prefs.edit().remove("saved_user_id").apply()
     }
 }
