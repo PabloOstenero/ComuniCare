@@ -16,7 +16,7 @@ Utilizamos este patrón para gestionar el ciclo de vida de los datos de forma se
 **Ejemplo de Lógica Asíncrona (`HelpViewModel.kt`):** 
 Utilizamos **Corrutinas** para no bloquear el hilo principal mientras se realizan operaciones pesadas (como leer de la BD).
 
-https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/ui/viewmodel/HelpViewModel.kt#L98-L108
+https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/ui/viewmodel/HelpViewModel.kt#L98-L108
 
 ## 2. Persistencia de Datos: Tecnología Room (RA6.d)
 Para el almacenamiento local (RA6.d), utilizamos **Room Persistence Library**. Room es una capa de abstracción sobre SQLite que nos permite interactuar con la base de datos utilizando objetos Kotlin (POJOs) en lugar de escribir SQL crudo manualmente, lo que reduce errores en tiempo de compilación.
@@ -29,7 +29,7 @@ Definimos las tablas como clases de datos (`data class`) anotadas con `@Entity`.
 
 **Archivo:** `UserEntity.kt`
 
-https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/data/local/entity/UserEntity.kt#L8-L43
+https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/data/local/entity/UserEntity.kt#L8-L43
 
 ### B. DAO (Data Access Object)
 
@@ -37,7 +37,7 @@ Es la interfaz donde definimos las operaciones. Room verifica en tiempo de compi
 
 **Archivo:** `UserDao.kt`
 
-https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/data/local/dao/UserDao.kt#L6-L19
+https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/data/local/dao/UserDao.kt#L6-L19
 
 ## 3. RA5 – Informes y Análisis (Criterios FFOE)
 
@@ -51,7 +51,7 @@ El informe no es estático. El sistema realiza cálculos matemáticos sobre los 
 
 **Lógica de cálculo en `ReportsScreen.kt`:**
 
-https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/ui/screens/ReportsScreen.kt#L302-L329
+https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/ui/screens/ReportsScreen.kt#L302-L329
 
 ### RA5.h - Integración
 La pantalla de informes es parte integral del flujo de navegación de la aplicación, accesible para el perfil de Administrador.
@@ -90,7 +90,7 @@ Utilizamos **JUnit** para probar la lógica aislada. Validamos que las funciones
 
 **Ejemplo (`HelpViewModelTest.kt`):**
 
-https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/test/java/com/example/comunicare/HelpViewModelTest.kt#L52-L74
+https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/test/java/com/example/comunicare/HelpViewModelTest.kt#L52-L74
 
 ### RA8.d - Pruebas de Estrés y Rendimiento
 
@@ -114,7 +114,7 @@ Utilizamos el `Intent` de reconocimiento de voz de Android para permitir la entr
 
 3. La app captura el resultado y rellena los campos automáticamente.
 
-https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/ui/screens/BeneficiaryHomeScreen.kt#L76-L86
+https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/ui/screens/BeneficiaryHomeScreen.kt#L76-L86
 
 ## Video Explicativo del Funcionamiento
 A continuación, se adjunta un video demostrativo cubriendo:
