@@ -16,32 +16,7 @@ Utilizamos este patrón para gestionar el ciclo de vida de los datos de forma se
 **Ejemplo de Lógica Asíncrona (`HelpViewModel.kt`):** 
 Utilizamos **Corrutinas** para no bloquear el hilo principal mientras se realizan operaciones pesadas (como leer de la BD).
 
-```kotlin
-@HiltViewModel
-class HelpViewModel @Inject constructor(
-    private val repository: HelpRepository
-) : ViewModel() {
-
-    // Estado observable que contiene los datos listos para consumir
-    private val _uiState = MutableStateFlow<HelpUiState>(HelpUiState.Loading)
-    val uiState: StateFlow<HelpUiState> = _uiState.asStateFlow()
-
-    // Lógica de negocio ejecutada en segundo plano (viewModelScope)
-    fun loadRequests() {
-        viewModelScope.launch {
-            try {
-                // El repositorio decide si saca datos de Room o de una API
-                repository.getAllRequests().collect { requests ->
-                    _uiState.value = HelpUiState.Success(requests)
-                }
-            } catch (e: Exception) {
-                _uiState.value = HelpUiState.Error("Error al cargar datos")
-            }
-        }
-    }
-}
-```
-[📸 INSERTAR CAPTURA AQUÍ: Pantalla principal de la app cargando o mostrando la lista de solicitudes]
+https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/ui/viewmodel/HelpViewModel.kt#L98-L108
 
 ## 2. Persistencia de Datos: Tecnología Room (RA6.d)
 Para el almacenamiento local (RA6.d), utilizamos **Room Persistence Library**. Room es una capa de abstracción sobre SQLite que nos permite interactuar con la base de datos utilizando objetos Kotlin (POJOs) en lugar de escribir SQL crudo manualmente, lo que reduce errores en tiempo de compilación.
@@ -54,15 +29,7 @@ Definimos las tablas como clases de datos (`data class`) anotadas con `@Entity`.
 
 **Archivo:** `UserEntity.kt`
 
-```kotlin
-@Entity(tableName = "users")
-data class UserEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0, // Clave primaria autogenerada
-    @ColumnInfo(name = "full_name") val fullName: String,
-    @ColumnInfo(name = "phone_number") val phoneNumber: String,
-    @ColumnInfo(name = "role") val role: String // 'VOLUNTARIO' o 'BENEFICIARIO'
-)
-```
+https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/data/local/entity/UserEntity.kt#L8-L43
 
 ### B. DAO (Data Access Object)
 
@@ -70,19 +37,7 @@ Es la interfaz donde definimos las operaciones. Room verifica en tiempo de compi
 
 **Archivo:** `UserDao.kt`
 
-```kotlin
-@Dao
-interface UserDao {
-    // Inserción eficiente: Si el usuario ya existe, lo reemplaza
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUser(user: UserEntity)
-
-    // Consulta que retorna un Flow (flujo de datos continuo)
-    // Si la BD cambia, este flujo emite el nuevo valor automáticamente
-    @Query("SELECT * FROM users WHERE role = 'VOLUNTARIO'")
-    fun getVolunteers(): Flow<List<UserEntity>>
-}
-```
+https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/data/local/dao/UserDao.kt#L6-L19
 
 ## 3. RA5 – Informes y Análisis (Criterios FFOE)
 
@@ -96,31 +51,12 @@ El informe no es estático. El sistema realiza cálculos matemáticos sobre los 
 
 **Lógica de cálculo en `ReportsScreen.kt`:**
 
-```kotlin
-// 1. Obtención de datos crudos
-val totalRequests = requests.size
-val solvedRequests = requests.count { it.status == "COMPLETED" }
-
-// 2. Cálculo matemático para el gráfico (Regla de tres)
-// Calculamos el ángulo de barrido (sweepAngle) para el gráfico circular
-val successRate = if (totalRequests > 0) (solvedRequests.toFloat() / totalRequests) else 0f
-val sweepAngle = successRate * 360f 
-
-// 3. Dibujado dinámico
-Canvas(modifier = Modifier.size(200.dp)) {
-    drawArc(
-        color = Color.Green,
-        startAngle = -90f,
-        sweepAngle = sweepAngle, // El ángulo depende del cálculo anterior
-        useCenter = true
-    )
-}
-```
+https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/ui/screens/ReportsScreen.kt#L302-L329
 
 ### RA5.h - Integración
 La pantalla de informes es parte integral del flujo de navegación de la aplicación, accesible para el perfil de Administrador.
 
-[📸 INSERTAR CAPTURA AQUÍ: Pantalla de la app mostrando los gráficos estadísticos]
+![INSERTAR CAPTURA AQUÍ: Pantalla de la app mostrando los gráficos estadísticos](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/Pantalla%20de%20estad%C3%ADsticas.jpeg)
 
 ## 4. RA7 – Distribución y Despliegue (GitHub Releases)
 
@@ -154,20 +90,7 @@ Utilizamos **JUnit** para probar la lógica aislada. Validamos que las funciones
 
 **Ejemplo (`HelpViewModelTest.kt`):**
 
-```kotlin
-@Test
-fun `verify efficiency calculation returns correct percentage`() {
-    // Datos simulados
-    val total = 100
-    val completed = 25
-    
-    // Ejecución de la lógica
-    val efficiency = CalculationUtils.calculateEfficiency(total, completed)
-    
-    // Verificación (Assert)
-    assertEquals(25.0f, efficiency)
-}
-```
+https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/test/java/com/example/comunicare/HelpViewModelTest.kt#L52-L74
 
 ### RA8.d - Pruebas de Estrés y Rendimiento
 
@@ -191,18 +114,7 @@ Utilizamos el `Intent` de reconocimiento de voz de Android para permitir la entr
 
 3. La app captura el resultado y rellena los campos automáticamente.
 
-```kotlin
-// Lanzador de actividad para resultado
-val speechLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.StartActivityForResult()
-) { result ->
-    // Procesamiento del resultado
-    val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-    if (spokenText != null) {
-        viewModel.onDescriptionChanged(spokenText)
-    }
-}
-```
+https://github.com/PabloOstenero/ComuniCare/blob/main/app/src/main/java/com/example/comunicare/ui/screens/BeneficiaryHomeScreen.kt#L76-L86
 
 ## Video Explicativo del Funcionamiento
 A continuación, se adjunta un video demostrativo cubriendo:
@@ -213,5 +125,5 @@ A continuación, se adjunta un video demostrativo cubriendo:
 
 3. Generación de informes gráficos.
 
-[🎥 INSERTAR VIDEO AQUÍ]
+[Video mostrando la app](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/video_app.mp4)
  
