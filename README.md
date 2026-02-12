@@ -93,6 +93,6 @@ La aplicación genera paquetes optimizados para su despliegue:
 ---
 
 ## Autor
-Proyecto desarrollado por **Pablo Ostenero**  
+Proyecto desarrollado por **Pablo Ostenero Reyes**  
 Ciclo Formativo de Grado Superior – Desarrollo de Aplicaciones Multiplataforma (2º DAM)  
 *Desarrollo de Interfaces (DIN)*
