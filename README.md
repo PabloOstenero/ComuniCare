@@ -53,7 +53,7 @@ El proyecto se ha desarrollado como **Proyecto Final del módulo DIN**, aplicand
 ├── documentos/               # Documentación oficial del proyecto
 │   ├── Manual_Tecnico.md     # Requisitos, Arquitectura y Persistencia (RA6.f, RA6.d)
 │   ├── Pruebas.md            # Informe de resultados y estrategia de tests (RA8)
-│   └── Criterios             # Informe detallando los criterios 
+│   └── Criterios.md          # Informe detallando los criterios 
 └── README.md                 # Descripción general y justificación de rúbrica
 
 ```
@@ -61,6 +61,7 @@ El proyecto se ha desarrollado como **Proyecto Final del módulo DIN**, aplicand
 ### Manuales y Guías
 *   **Manual Técnico:** [Manual Técnico](documentos/Manual_Tecnico.md)
 *   **Informe de Pruebas:** [Pruebas](documentos/Pruebas.md)
+*   **Informe de los Criterios:** [Criterios](documentos/Criterios.md)
 *   **Video Demostrativo:** [Video Explicativo](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/video_app.mp4)
 
 ---
