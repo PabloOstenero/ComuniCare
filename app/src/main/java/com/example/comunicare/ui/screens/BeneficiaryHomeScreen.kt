@@ -20,7 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.comunicare.domain.model.HelpType
-import com.example.comunicare.domain.model.RequestStatus
 import com.example.comunicare.ui.components.AccessibleButton
 import com.example.comunicare.ui.components.HelpRequestCard
 import com.example.comunicare.ui.components.ScreenHeader

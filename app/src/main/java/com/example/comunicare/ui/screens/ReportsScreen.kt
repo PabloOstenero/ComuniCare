@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -40,120 +41,128 @@ fun ReportsScreen(viewModel: HelpViewModel) {
     val allRequests by viewModel.requests.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     
+    // --- ESTADO DE FILTRADO (RA5.c) ---
+    var selectedType by remember { mutableStateOf<HelpType?>(null) }
     var showDetailedReport by remember { mutableStateOf(false) }
 
-    // --- CÁLCULOS GLOBALES DEL SISTEMA (RA5.d) ---
-    val totalGlobal = allRequests.size
-    val emergencyGlobal = allRequests.count { it.type == HelpType.EMERGENCY }
-    val completedGlobal = allRequests.count { it.status == RequestStatus.COMPLETED }
-    val pendingGlobal = allRequests.count { it.status == RequestStatus.PENDING }
-    val assignedGlobal = allRequests.count { it.status == RequestStatus.ASSIGNED }
+    // Aplicar filtro dinámico
+    val filteredRequests = remember(allRequests, selectedType) {
+        if (selectedType == null) allRequests else allRequests.filter { it.type == selectedType }
+    }
+
+    // --- CÁLCULOS SOBRE DATOS FILTRADOS (RA5.d) ---
+    val totalGlobal = filteredRequests.size
+    val emergencyGlobal = filteredRequests.count { it.type == HelpType.EMERGENCY }
+    val completedGlobal = filteredRequests.count { it.status == RequestStatus.COMPLETED }
+    val pendingGlobal = filteredRequests.count { it.status == RequestStatus.PENDING }
+    val assignedGlobal = filteredRequests.count { it.status == RequestStatus.ASSIGNED }
     
-    // Tasa de resolución global
     val resolutionRate = if (totalGlobal > 0) (completedGlobal.toFloat() / totalGlobal * 100).toInt() else 0
-    
-    // Voluntarios activos (basado en IDs únicos asignados)
-    val activeVolunteers = allRequests.mapNotNull { it.assignedVolunteerId }.distinct().size
+    val activeVolunteers = filteredRequests.mapNotNull { it.assignedVolunteerId }.distinct().size
 
     // --- DATOS DEL INFORME PERSONAL (RA5.b) ---
-    val myAssigned = allRequests.filter { it.assignedVolunteerId == currentUser?.id }
+    val myAssigned = filteredRequests.filter { it.assignedVolunteerId == currentUser?.id }
     val myCompleted = myAssigned.filter { it.status == RequestStatus.COMPLETED }
     val myEmergencies = myAssigned.count { it.type == HelpType.EMERGENCY }
-    
+    val myImpactPercentage = if (allRequests.isNotEmpty()) (myCompleted.size.toFloat() / allRequests.size * 100).toInt() else 0
+
     // Desglose de servicios personales por tipo
     val myShopping = myAssigned.count { it.type == HelpType.SHOPPING }
     val myMeds = myAssigned.count { it.type == HelpType.MEDICATION }
     val myWalks = myAssigned.count { it.type == HelpType.ACCOMPANIMENT }
-    
-    // Impacto relativo en la comunidad (RA5.d)
-    val myImpactPercentage = if (totalGlobal > 0) (myCompleted.size.toFloat() / totalGlobal * 100).toInt() else 0
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .background(MaterialTheme.colorScheme.background)
     ) {
         ScreenHeader(title = "Análisis de Datos")
-        
-        Column(modifier = Modifier.padding(16.dp)) {
+
+        // Barra de Filtros por Tipo (RA5.c)
+        ScrollableTabRow(
+            selectedTabIndex = if (selectedType == null) 0 else selectedType!!.ordinal + 1,
+            edgePadding = 16.dp,
+            containerColor = MaterialTheme.colorScheme.surface,
+            divider = {}
+        ) {
+            Tab(selected = selectedType == null, onClick = { selectedType = null }) {
+                Text("Todos", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.labelLarge)
+            }
+            HelpType.entries.forEach { type ->
+                Tab(selected = selectedType == type, onClick = { selectedType = type }) {
+                    Text(type.name.take(5), modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
             Text(
-                text = "Resumen Operativo del Barrio", 
+                text = if(selectedType == null) "Resumen Global" else "Análisis: ${selectedType!!.name}", 
                 style = MaterialTheme.typography.titleLarge, 
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary
             )
+            
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Tasa de resolución: $resolutionRate%",
+                    text = "Resolución en este grupo: $resolutionRate%",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = "Voluntarios activos: $activeVolunteers",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
                 )
             }
             
             Spacer(modifier = Modifier.height(20.dp))
             
-            // Grid de KPIs Principales (RA5.d)
+            // KPIs sobre lista filtrada
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                KpiCard("Total Solicitudes", totalGlobal.toString(), Icons.Default.FactCheck, Modifier.weight(1f))
-                KpiCard("Alertas Críticas", emergencyGlobal.toString(), Icons.AutoMirrored.Filled.TrendingUp, Modifier.weight(1f), Color.Red)
+                KpiCard("Avisos", totalGlobal.toString(),
+                    Icons.AutoMirrored.Filled.FactCheck, Modifier.weight(1f))
+                KpiCard("Críticos", emergencyGlobal.toString(), Icons.AutoMirrored.Filled.TrendingUp, Modifier.weight(1f), Color.Red)
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 KpiCard("En Espera", pendingGlobal.toString(), Icons.Default.HourglassEmpty, Modifier.weight(1f), Color(0xFFF57C00))
-                KpiCard("Completadas", completedGlobal.toString(), Icons.Default.CheckCircle, Modifier.weight(1f), Color(0xFF388E3C))
+                KpiCard("Cerrados", completedGlobal.toString(), Icons.Default.CheckCircle, Modifier.weight(1f), Color(0xFF388E3C))
             }
 
             Spacer(modifier = Modifier.height(32.dp))
             
-            // Gráfico de Barras: Demanda por categoría (RA5.e)
-            Text(text = "Demanda de Servicios", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(text = "Análisis de frecuencia por tipo de ayuda", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            HelpTypeDistributionChart(
-                requests = allRequests,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(vertical = 16.dp)
-            )
+            if (selectedType == null) {
+                Text(text = "Distribución de Necesidades", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                HelpTypeDistributionChart(
+                    requests = allRequests,
+                    modifier = Modifier.fillMaxWidth().height(200.dp).padding(vertical = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
             
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Gráfico Circular: Estado de la Gestión (RA5.e)
-            Text(text = "Estado de Resolución Global", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = "Proporción de Estados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             StatusPieChart(
                 pending = pendingGlobal,
                 assigned = assignedGlobal,
                 completed = completedGlobal,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .padding(vertical = 16.dp)
+                modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Actividad Reciente Estratégica (RA5.b)
-            Text(text = "Últimas Alertas de la Red", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            // Actividad Reciente Filtrada
+            Text(text = "Últimos avisos (${filteredRequests.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            if (allRequests.isEmpty()) {
-                Text("Sin actividad registrada.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            if (filteredRequests.isEmpty()) {
+                Text("Sin resultados para este filtro.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             } else {
-                allRequests.take(3).forEach { req ->
-                    RecentActivityItem(req)
-                }
+                filteredRequests.take(3).forEach { req -> RecentActivityItem(req) }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Generador de Informe Personal Profesional (RA5.b)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -162,12 +171,10 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Insights, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Informe de Impacto Personal", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text("Genera un análisis profesional de tu rendimiento y contribución social.", style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Text("Informe de Impacto Individual", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Button(
                         onClick = { showDetailedReport = true },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Generar Informe Detallado 📄")
@@ -178,11 +185,11 @@ fun ReportsScreen(viewModel: HelpViewModel) {
             if (showDetailedReport) {
                 AlertDialog(
                     onDismissRequest = { showDetailedReport = false },
-                    title = { 
+                    title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
-                            Text("Certificado de Gestión") 
+                            Text("Certificado de Gestión")
                         }
                     },
                     text = {
@@ -195,17 +202,17 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                             DetailRow("Tareas cerradas con éxito", myCompleted.size.toString())
                             DetailRow("Emergencias críticas atendidas", myEmergencies.toString(), isHighlight = true)
                             DetailRow("Aportación a la red global", "$myImpactPercentage%")
-                            
+
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("Desglose por Áreas de Ayuda:", fontWeight = FontWeight.Bold)
                             DetailRow("Compras y Alimentación", myShopping.toString())
                             DetailRow("Atención Médica", myMeds.toString())
                             DetailRow("Paseos y Compañía", myWalks.toString())
-                            
+
                             Spacer(modifier = Modifier.height(16.dp))
                             HorizontalDivider()
                             Spacer(modifier = Modifier.height(16.dp))
-                            
+
                             Text("Historial de Logros Recientes:", fontWeight = FontWeight.Bold)
                             if (myCompleted.isEmpty()) {
                                 Text("Aún no se han registrado tareas completadas.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
@@ -215,7 +222,7 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                                     Text("• ${req.type.name} ($date)", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-                            
+
                             Spacer(modifier = Modifier.height(20.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -240,13 +247,12 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showDetailedReport = false }) { 
-                            Text("Cerrar Informe", fontWeight = FontWeight.Bold) 
+                        TextButton(onClick = { showDetailedReport = false }) {
+                            Text("Cerrar Informe", fontWeight = FontWeight.Bold)
                         }
                     }
                 )
             }
-            
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
@@ -267,15 +273,11 @@ fun HelpTypeDistributionChart(requests: List<HelpRequest>, modifier: Modifier = 
 
         counts.forEachIndexed { index, count ->
             val barHeight = (count.toFloat() / maxCount) * height
-            
-            // Dibujar fondo de la barra para profundidad visual
             drawRect(
                 color = colors[index].copy(alpha = 0.1f),
                 topLeft = Offset(spacing + (index * (barWidth + spacing)), 0f),
                 size = Size(barWidth, height)
             )
-            
-            // Dibujar barra de datos real
             drawRect(
                 color = colors[index],
                 topLeft = Offset(spacing + (index * (barWidth + spacing)), height - barHeight),
@@ -283,7 +285,6 @@ fun HelpTypeDistributionChart(requests: List<HelpRequest>, modifier: Modifier = 
             )
         }
     }
-    
     Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
         types.forEach { 
             val label = when(it) {
@@ -317,9 +318,7 @@ fun StatusPieChart(pending: Int, assigned: Int, completed: Int, modifier: Modifi
                 Text("Éxito", style = MaterialTheme.typography.labelSmall)
             }
         }
-        
         Spacer(modifier = Modifier.width(32.dp))
-        
         Column {
             LegendItem("Pendiente (${(pending*100/total)}%)", Color.Red)
             LegendItem("En Proceso (${(assigned*100/total)}%)", Color(0xFF2196F3))

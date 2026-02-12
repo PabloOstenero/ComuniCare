@@ -1,129 +1,97 @@
-# ComuniCare - Memoria Técnica y Documentación del Proyecto
-**ComuniCare** es una plataforma móvil nativa desarrollada en Kotlin. Este documento detalla la ingeniería del software aplicada, la arquitectura de datos y la justificación técnica frente a los criterios de evaluación (RA), enfocándose en el rendimiento y la escalabilidad del código.
+# ComuniCare – Plataforma de Apoyo y Gestión Comunitaria
+
+**ComuniCare** es una aplicación móvil nativa desarrollada para Android mediante Jetpack Compose. Su objetivo principal es fortalecer el tejido social permitiendo que personas en situación de necesidad (beneficiarios) conecten con voluntarios y administradores para recibir asistencia en tareas cotidianas, salud o emergencias.
+
+El proyecto se ha desarrollado como **Proyecto Final del módulo DIN**, aplicando una arquitectura moderna de software, integración con hardware del dispositivo y una gestión robusta de la persistencia de datos.
 
 ---
 
-## 1. Arquitectura y Lógica de Negocio (Clean Architecture)
-El proyecto sigue una arquitectura por capas estricta para garantizar que la lógica de negocio esté desacoplada de la interfaz.
+## Objetivos del proyecto
+*   **Centralizar la ayuda:** Gestionar solicitudes de asistencia (compras, acompañamiento, salud) en una sola plataforma.
+*   **Comunicación Inmediata:** Facilitar el contacto directo mediante un chat multimedia privado.
+*   **Diferenciación de Roles:** Control de acceso estricto mediante perfiles de Beneficiario y Administrador.
+*   **Accesibilidad NUI:** Implementar reconocimiento de voz para facilitar el uso a personas con movilidad reducida.
+*   **Análisis de Impacto:** Generar informes estadísticos dinámicos basados en datos reales de la comunidad.
+*   **Arquitectura Profesional:** Aplicar principios de Clean Architecture para garantizar un código mantenible y testable.
 
-### 1.1 Patrón MVVM (Model-View-ViewModel)
-Utilizamos este patrón para gestionar el ciclo de vida de los datos de forma segura.
+---
 
-* **Model (Repositorio y Datos):** Gestiona la fuente de verdad (Base de datos Room).
+## Arquitectura y tecnologías
+*   **Lenguaje:** Kotlin 2.0.21
+*   **Interfaz Gráfica:** Jetpack Compose + Material 3 (Diseño Accesible)
+*   **Arquitectura:** MVVM (Model-View-ViewModel) + Principios de Clean Architecture
+*   **Persistencia Local:** [Room SQLite](app/src/main/java/com/example/comunicare/data/local/database/AppDatabase.kt)
+*   **Gestión de Sesiones:** SharedPreferences (Sesión permanente)
+*   **Asincronía:** Kotlin Coroutines + Flow (Reactividad en tiempo real)
+*   **Hardware:** Integración con Cámara, Micrófono (Audio nativo) y Speech-to-Text
 
-* **ViewModel:** Es el intermediario. No conoce la interfaz gráfica. Su función es exponer los datos mediante flujos reactivos (`StateFlow`) y ejecutar la lógica de negocio en hilos secundarios.
+---
 
-**Ejemplo de Lógica Asíncrona (`HelpViewModel.kt`):** 
-Utilizamos **Corrutinas** para no bloquear el hilo principal mientras se realizan operaciones pesadas (como leer de la BD).
+## Funcionalidades principales
+*   **Registro Seguro:** Creación de cuenta mediante número de teléfono como clave única.
+*   **Gestión de Ayuda:** Creación, asignación y finalización de solicitudes de servicio.
+*   **Chat Multimedia:** Comunicación bidireccional con envío de fotos y notas de voz reales.
+*   **Botón de Emergencia:** Alerta crítica destacada para asistencia inmediata.
+*   **Informes Avanzados:** Panel de estadísticas con gráficos dinámicos (Canvas) y métricas de impacto.
+*   **Seguridad:** Recuperación de cuenta mediante "Contacto de Confianza" y cambio de contraseña obligatorio.
+*   **Interacción por Voz:** Petición de ayuda mediante comandos de voz naturales.
 
-https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/ui/viewmodel/HelpViewModel.kt#L98-L108
+---
 
-## 2. Persistencia de Datos: Tecnología Room (RA6.d)
-Para el almacenamiento local (RA6.d), utilizamos **Room Persistence Library**. Room es una capa de abstracción sobre SQLite que nos permite interactuar con la base de datos utilizando objetos Kotlin (POJOs) en lugar de escribir SQL crudo manualmente, lo que reduce errores en tiempo de compilación.
+## Roles de usuario
+| Rol               | Funcionalidad                                                                              |
+|:------------------|:-------------------------------------------------------------------------------------------|
+| **Administrador** | Gestión global de la red, asignación de tareas, acceso a informes y chat de soporte.       |
+| **Beneficiario**  | Creación de solicitudes, gestión de perfil de seguridad y chat con el voluntario asignado. |
 
-### ¿Cómo funciona Room internamente en este proyecto?
+---
 
-### A. Entidades (La estructura de la tabla)
+## Estructura del repositorio
+```text
+.
+├── app/                      # Código fuente de la aplicación (Kotlin/Compose)
+├── documentos/               # Documentación oficial del proyecto
+│   ├── Manual_Tecnico.md     # Requisitos, Arquitectura y Persistencia (RA6.f, RA6.d)
+│   ├── Pruebas.md            # Informe de resultados y estrategia de tests (RA8)
+│   └── Criterios             # Informe detallando los criterios 
+└── README.md                 # Descripción general y justificación de rúbrica
 
-Definimos las tablas como clases de datos (`data class`) anotadas con `@Entity`. Room convierte automáticamente las propiedades de la clase en columnas de la base de datos.
+```
 
-**Archivo:** `UserEntity.kt`
+### Manuales y Guías
+*   **Manual Técnico:** [Manual Técnico](documentos/Manual_Tecnico.md)
+*   **Informe de Pruebas:** [Pruebas](documentos/Pruebas.md)
+*   **Video Demostrativo:** [Video Explicativo](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/video_app.mp4)
 
-https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/data/local/entity/UserEntity.kt#L8-L43
+---
 
-### B. DAO (Data Access Object)
+## Pruebas y Calidad (RA8)
+El proyecto incluye pruebas unitarias y de integración centradas en la lógica de negocio y la estabilidad de los flujos de datos, utilizando:
+*   **JUnit 4** para validaciones lógicas.
+*   **Kotlinx-Coroutines-Test** para la sincronización de flujos asíncronos.
+*   **Fake Repositories** para simular la persistencia sin dependencias de hardware.
 
-Es la interfaz donde definimos las operaciones. Room verifica en tiempo de compilación que las consultas SQL sean correctas.
+**Ejecución de tests:**
+```bash
+./gradlew test
+```
 
-**Archivo:** `UserDao.kt`
+---
 
-https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/data/local/dao/UserDao.kt#L6-L19
+## Distribución (RA7)
+La aplicación genera paquetes optimizados para su despliegue:
+*   **Android App Bundle (AAB):** Para distribución profesional en Google Play.
+*   **APK Firmado:** Disponible en la sección de [Releases de GitHub](https://github.com/PabloOstenero/ComuniCare/releases).
 
-## 3. RA5 – Informes y Análisis (Criterios FFOE)
+---
 
-Hemos desarrollado un módulo de informes que procesa los datos almacenados en Room para generar estadísticas de impacto social.
+## Mejoras futuras
+*   **Sincronización en la Nube:** Migración a Firebase para respaldo externo de datos.
+*   **Geolocalización:** Rastreo en tiempo real para servicios de emergencia.
 
-### RA5.f - Herramientas de generación (Canvas API)
-Para la visualización, utilizamos la API nativa de gráficos **Canvas**. Esto nos permite dibujar gráficos circulares y de barras calculando matemáticamente los ángulos y coordenadas, sin depender de librerías externas que aumenten el peso de la app.
+---
 
-### RA5.g - Modificación del código y Cálculos
-El informe no es estático. El sistema realiza cálculos matemáticos sobre los datos crudos obtenidos del DAO.
-
-**Lógica de cálculo en `ReportsScreen.kt`:**
-
-https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/ui/screens/ReportsScreen.kt#L302-L329
-
-### RA5.h - Integración
-La pantalla de informes es parte integral del flujo de navegación de la aplicación, accesible para el perfil de Administrador.
-
-![INSERTAR CAPTURA AQUÍ: Pantalla de la app mostrando los gráficos estadísticos](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/Pantalla%20de%20estad%C3%ADsticas.jpeg)
-
-## 4. RA7 – Distribución y Despliegue (GitHub Releases)
-
-La estrategia de distribución se centra en la seguridad y la accesibilidad mediante repositorios públicos.
-
-### RA7.c - Paquete desde el Entorno (Android Studio)
-
-En lugar de automatizar la firma en Gradle (lo cual podría exponer contraseñas en texto plano), utilizamos las herramientas integradas del entorno de desarrollo (**Build > Generate Signed Bundle / APK**).
-
-* Esto garantiza que el binario final (APK) se compile en modo `release`, eliminando logs de depuración y optimizando el código.
-
-### RA7.e - Firma Digital Segura
-La aplicación se firma digitalmente utilizando un almacén de claves (`Keystore`) privado gestionado manualmente durante la compilación.
-
-* Esto asegura la integridad de la aplicación: el APK generado no puede ser modificado por terceros sin invalidar la firma.
-
-### RA7.h - Canales de Distribución (GitHub Releases)
-Utilizamos **GitHub** como canal de distribución profesional.
-
-1. El código fuente se versiona con Git.
-
-2. Se crea un **Release** (Lanzamiento) etiquetado (ej. `v1.0.0`).
-
-3. El APK firmado se sube como "Asset" (binario adjunto) en el release, permitiendo a los usuarios descargar la versión estable directamente desde el repositorio oficial del proyecto.
-
-## 5. RA8 – Calidad y Pruebas
-
-### RA8.c - Pruebas de Regresión (Unit Testing)
-
-Utilizamos **JUnit** para probar la lógica aislada. Validamos que las funciones matemáticas y de transformación de datos funcionen como se espera antes de desplegar.
-
-**Ejemplo (`HelpViewModelTest.kt`):**
-
-https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/test/java/com/example/comunicare/HelpViewModelTest.kt#L52-L74
-
-### RA8.d - Pruebas de Estrés y Rendimiento
-
-Para manejar grandes volúmenes de datos (ej. 5000 voluntarios), utilizamos técnicas de **virtualización de listas** (Lazy Loading).
-
-* **Funcionamiento:** El sistema solo mantiene en memoria los elementos visibles en la pantalla. A medida que el usuario hace scroll, las celdas que salen de la pantalla se reciclan para mostrar los nuevos datos. Esto evita el desbordamiento de memoria (OutOfMemoryError).
-
-## 6. Tecnologías NUI (RA2)
-
-Implementamos tecnologías de Interacción Natural (NUI) para mejorar la accesibilidad mediante hardware del dispositivo.
-
-### RA2.c - Reconocimiento de Voz (Speech-to-Text)
-
-Utilizamos el `Intent` de reconocimiento de voz de Android para permitir la entrada de datos sin teclado.
-
-### Implementación técnica:
-
-1. Se lanza un `Intent` con la acción `ACTION_RECOGNIZE_SPEECH`.
-
-2. El sistema operativo procesa el audio y devuelve una lista de posibles textos.
-
-3. La app captura el resultado y rellena los campos automáticamente.
-
-https://github.com/PabloOstenero/ComuniCare/blob/e4e35e13df25f4fccb00ffb27cf818599ca48cf7/app/src/main/java/com/example/comunicare/ui/screens/BeneficiaryHomeScreen.kt#L76-L86
-
-## Video Explicativo del Funcionamiento
-A continuación, se adjunta un video demostrativo cubriendo:
-
-1. Registro de usuario y persistencia en Room.
-
-2. Uso del reconocimiento de voz para crear una alerta.
-
-3. Generación de informes gráficos.
-
-[Video mostrando la app](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/video_app.mp4)
- 
+## Autor
+Proyecto desarrollado por **Pablo Ostenero**  
+Ciclo Formativo de Grado Superior – Desarrollo de Aplicaciones Multiplataforma (2º DAM)  
+*Desarrollo de Interfaces (DIN)*

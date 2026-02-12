@@ -189,7 +189,7 @@ class MainActivity : ComponentActivity() {
                                 composable("admin_dashboard") { AdminDashboardScreen(viewModel, { navController.navigate("reports") }, { scope.launch { drawerState.open() } }, { id -> navController.navigate("chat/$id") }) }
                                 composable("trusted_contact") { TrustedContactScreen(viewModel) { navController.popBackStack() } }
                                 composable("reports") { ReportsScreen(viewModel) }
-                                composable("help") { HelpScreen() }
+                                composable("help") { HelpScreen(viewModel) }
 
                                 composable(
                                     "chat/{requestId}",
