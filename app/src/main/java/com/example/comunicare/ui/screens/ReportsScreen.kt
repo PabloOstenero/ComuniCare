@@ -1,5 +1,13 @@
 package com.example.comunicare.ui.screens
 
+import android.content.ContentValues
+import android.content.Context
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,6 +28,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +37,8 @@ import com.example.comunicare.domain.model.HelpType
 import com.example.comunicare.domain.model.RequestStatus
 import com.example.comunicare.ui.components.ScreenHeader
 import com.example.comunicare.ui.viewmodel.HelpViewModel
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,129 +51,118 @@ import java.util.*
 fun ReportsScreen(viewModel: HelpViewModel) {
     val allRequests by viewModel.requests.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
+    val context = LocalContext.current
     
-    // --- ESTADO DE FILTRADO (RA5.c) ---
-    var selectedType by remember { mutableStateOf<HelpType?>(null) }
     var showDetailedReport by remember { mutableStateOf(false) }
 
-    // Aplicar filtro dinámico
-    val filteredRequests = remember(allRequests, selectedType) {
-        if (selectedType == null) allRequests else allRequests.filter { it.type == selectedType }
-    }
-
-    // --- CÁLCULOS SOBRE DATOS FILTRADOS (RA5.d) ---
-    val totalGlobal = filteredRequests.size
-    val emergencyGlobal = filteredRequests.count { it.type == HelpType.EMERGENCY }
-    val completedGlobal = filteredRequests.count { it.status == RequestStatus.COMPLETED }
-    val pendingGlobal = filteredRequests.count { it.status == RequestStatus.PENDING }
-    val assignedGlobal = filteredRequests.count { it.status == RequestStatus.ASSIGNED }
+    // --- CÁLCULOS GLOBALES DEL SISTEMA (RA5.d) ---
+    val totalGlobal = allRequests.size
+    val emergencyGlobal = allRequests.count { it.type == HelpType.EMERGENCY }
+    val completedGlobal = allRequests.count { it.status == RequestStatus.COMPLETED }
+    val pendingGlobal = allRequests.count { it.status == RequestStatus.PENDING }
+    val assignedGlobal = allRequests.count { it.status == RequestStatus.ASSIGNED }
     
     val resolutionRate = if (totalGlobal > 0) (completedGlobal.toFloat() / totalGlobal * 100).toInt() else 0
-    val activeVolunteers = filteredRequests.mapNotNull { it.assignedVolunteerId }.distinct().size
+    val activeVolunteers = allRequests.mapNotNull { it.assignedVolunteerId }.distinct().size
 
     // --- DATOS DEL INFORME PERSONAL (RA5.b) ---
-    val myAssigned = filteredRequests.filter { it.assignedVolunteerId == currentUser?.id }
+    val myAssigned = allRequests.filter { it.assignedVolunteerId == currentUser?.id }
     val myCompleted = myAssigned.filter { it.status == RequestStatus.COMPLETED }
     val myEmergencies = myAssigned.count { it.type == HelpType.EMERGENCY }
-    val myImpactPercentage = if (allRequests.isNotEmpty()) (myCompleted.size.toFloat() / allRequests.size * 100).toInt() else 0
-
-    // Desglose de servicios personales por tipo
+    
     val myShopping = myAssigned.count { it.type == HelpType.SHOPPING }
     val myMeds = myAssigned.count { it.type == HelpType.MEDICATION }
     val myWalks = myAssigned.count { it.type == HelpType.ACCOMPANIMENT }
+    
+    val myImpactPercentage = if (totalGlobal > 0) (myCompleted.size.toFloat() / totalGlobal * 100).toInt() else 0
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .background(MaterialTheme.colorScheme.background)
     ) {
         ScreenHeader(title = "Análisis de Datos")
-
-        // Barra de Filtros por Tipo (RA5.c)
-        ScrollableTabRow(
-            selectedTabIndex = if (selectedType == null) 0 else selectedType!!.ordinal + 1,
-            edgePadding = 16.dp,
-            containerColor = MaterialTheme.colorScheme.surface,
-            divider = {}
-        ) {
-            Tab(selected = selectedType == null, onClick = { selectedType = null }) {
-                Text("Todos", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.labelLarge)
-            }
-            HelpType.entries.forEach { type ->
-                Tab(selected = selectedType == type, onClick = { selectedType = type }) {
-                    Text(type.name.take(5), modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.labelLarge)
-                }
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
+        
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = if(selectedType == null) "Resumen Global" else "Análisis: ${selectedType!!.name}", 
+                text = "Resumen Operativo del Barrio", 
                 style = MaterialTheme.typography.titleLarge, 
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary
             )
-            
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Resolución en este grupo: $resolutionRate%",
+                    text = "Tasa de resolución: $resolutionRate%",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Voluntarios activos: $activeVolunteers",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
                 )
             }
             
             Spacer(modifier = Modifier.height(20.dp))
             
-            // KPIs sobre lista filtrada
+            // Grid de KPIs Principales (RA5.d)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                KpiCard("Avisos", totalGlobal.toString(),
+                KpiCard("Total Solicitudes", totalGlobal.toString(),
                     Icons.AutoMirrored.Filled.FactCheck, Modifier.weight(1f))
-                KpiCard("Críticos", emergencyGlobal.toString(), Icons.AutoMirrored.Filled.TrendingUp, Modifier.weight(1f), Color.Red)
+                KpiCard("Alertas Críticas", emergencyGlobal.toString(), Icons.AutoMirrored.Filled.TrendingUp, Modifier.weight(1f), Color.Red)
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 KpiCard("En Espera", pendingGlobal.toString(), Icons.Default.HourglassEmpty, Modifier.weight(1f), Color(0xFFF57C00))
-                KpiCard("Cerrados", completedGlobal.toString(), Icons.Default.CheckCircle, Modifier.weight(1f), Color(0xFF388E3C))
+                KpiCard("Completadas", completedGlobal.toString(), Icons.Default.CheckCircle, Modifier.weight(1f), Color(0xFF388E3C))
             }
 
             Spacer(modifier = Modifier.height(32.dp))
             
-            if (selectedType == null) {
-                Text(text = "Distribución de Necesidades", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                HelpTypeDistributionChart(
-                    requests = allRequests,
-                    modifier = Modifier.fillMaxWidth().height(200.dp).padding(vertical = 16.dp)
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-            }
+            // Gráfico de Barras: Demanda por categoría (RA5.e)
+            Text(text = "Demanda de Servicios", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = "Análisis de frecuencia por tipo de ayuda", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            HelpTypeDistributionChart(
+                requests = allRequests,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(vertical = 16.dp)
+            )
             
-            Text(text = "Proporción de Estados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Gráfico Circular: Estado de la Gestión (RA5.e)
+            Text(text = "Estado de Resolución Global", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             StatusPieChart(
                 pending = pendingGlobal,
                 assigned = assignedGlobal,
                 completed = completedGlobal,
-                modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .padding(vertical = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Actividad Reciente Filtrada
-            Text(text = "Últimos avisos (${filteredRequests.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            // Actividad Reciente Estratégica (RA5.b)
+            Text(text = "Últimas Alertas de la Red", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            if (filteredRequests.isEmpty()) {
-                Text("Sin resultados para este filtro.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            if (allRequests.isEmpty()) {
+                Text("Sin actividad registrada.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             } else {
-                filteredRequests.take(3).forEach { req -> RecentActivityItem(req) }
+                allRequests.take(3).forEach { req ->
+                    RecentActivityItem(req)
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // Generador de Informe Personal Profesional (RA5.b)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -171,10 +171,12 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Insights, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Informe de Impacto Individual", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Informe de Impacto Personal", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Genera un análisis profesional de tu rendimiento y contribución social.", style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(modifier = Modifier.height(20.dp))
                     Button(
                         onClick = { showDetailedReport = true },
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Generar Informe Detallado 📄")
@@ -185,11 +187,11 @@ fun ReportsScreen(viewModel: HelpViewModel) {
             if (showDetailedReport) {
                 AlertDialog(
                     onDismissRequest = { showDetailedReport = false },
-                    title = {
+                    title = { 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
-                            Text("Certificado de Gestión")
+                            Text("Certificado de Gestión") 
                         }
                     },
                     text = {
@@ -202,17 +204,17 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                             DetailRow("Tareas cerradas con éxito", myCompleted.size.toString())
                             DetailRow("Emergencias críticas atendidas", myEmergencies.toString(), isHighlight = true)
                             DetailRow("Aportación a la red global", "$myImpactPercentage%")
-
+                            
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("Desglose por Áreas de Ayuda:", fontWeight = FontWeight.Bold)
                             DetailRow("Compras y Alimentación", myShopping.toString())
                             DetailRow("Atención Médica", myMeds.toString())
                             DetailRow("Paseos y Compañía", myWalks.toString())
-
+                            
                             Spacer(modifier = Modifier.height(16.dp))
                             HorizontalDivider()
                             Spacer(modifier = Modifier.height(16.dp))
-
+                            
                             Text("Historial de Logros Recientes:", fontWeight = FontWeight.Bold)
                             if (myCompleted.isEmpty()) {
                                 Text("Aún no se han registrado tareas completadas.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
@@ -222,7 +224,7 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                                     Text("• ${req.type.name} ($date)", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-
+                            
                             Spacer(modifier = Modifier.height(20.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -247,14 +249,137 @@ fun ReportsScreen(viewModel: HelpViewModel) {
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showDetailedReport = false }) {
-                            Text("Cerrar Informe", fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    // RA5.f: Exportar a PDF
+                                    generateDetailedReportPdf(
+                                        context = context,
+                                        userName = currentUser?.name ?: "Usuario",
+                                        assigned = myAssigned.size,
+                                        completed = myCompleted.size,
+                                        emergencies = myEmergencies,
+                                        impact = myImpactPercentage,
+                                        shopping = myShopping,
+                                        meds = myMeds,
+                                        walks = myWalks
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Exportar PDF")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = { showDetailedReport = false }) { 
+                                Text("Cerrar", fontWeight = FontWeight.Bold) 
+                            }
                         }
                     }
                 )
             }
+            
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+}
+
+/**
+ * Función para generar el PDF real del informe detallado.
+ * RA5.f - Uso profesional de APIs de generación de documentos.
+ * Guarda el archivo en la carpeta pública de Descargas para fácil acceso.
+ */
+private fun generateDetailedReportPdf(
+    context: Context,
+    userName: String,
+    assigned: Int,
+    completed: Int,
+    emergencies: Int,
+    impact: Int,
+    shopping: Int,
+    meds: Int,
+    walks: Int
+) {
+    val pdfDocument = PdfDocument()
+    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Size
+    val page = pdfDocument.startPage(pageInfo)
+    val canvas = page.canvas
+    val paint = Paint()
+
+    // --- Contenido del PDF ---
+    paint.textSize = 24f
+    paint.isFakeBoldText = true
+    canvas.drawText("ComuniCare - Informe de Impacto Social", 50f, 50f, paint)
+
+    paint.textSize = 14f
+    paint.isFakeBoldText = false
+    canvas.drawText("Certificado de gestión de voluntariado", 50f, 75f, paint)
+
+    paint.strokeWidth = 2f
+    canvas.drawLine(50f, 90f, 545f, 90f, paint)
+
+    paint.textSize = 12f
+    canvas.drawText("Usuario: $userName", 50f, 120f, paint)
+    canvas.drawText("Fecha de emisión: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())}", 50f, 140f, paint)
+
+    paint.textSize = 16f
+    paint.isFakeBoldText = true
+    canvas.drawText("Resumen de Rendimiento", 50f, 180f, paint)
+
+    paint.textSize = 12f
+    paint.isFakeBoldText = false
+    canvas.drawText("• Total avisos gestionados: $assigned", 70f, 210f, paint)
+    canvas.drawText("• Tareas cerradas con éxito: $completed", 70f, 230f, paint)
+    canvas.drawText("• Emergencias críticas atendidas: $emergencies", 70f, 250f, paint)
+    canvas.drawText("• Aportación a la red global: $impact%", 70f, 270f, paint)
+
+    paint.textSize = 16f
+    paint.isFakeBoldText = true
+    canvas.drawText("Desglose por Áreas de Ayuda", 50f, 310f, paint)
+
+    paint.textSize = 12f
+    paint.isFakeBoldText = false
+    canvas.drawText("• Compras y Alimentación: $shopping", 70f, 340f, paint)
+    canvas.drawText("• Asistencia Médica: $meds", 70f, 360f, paint)
+    canvas.drawText("• Paseos y Compañía: $walks", 70f, 380f, paint)
+
+    paint.textSize = 10f
+    paint.color = android.graphics.Color.GRAY
+    canvas.drawText("Documento generado automáticamente por la plataforma ComuniCare.", 50f, 800f, paint)
+
+    pdfDocument.finishPage(page)
+
+    // --- Guardado del Archivo (Compatible con Android 10+) ---
+    val fileName = "Informe_ComuniCare_${userName.replace(" ", "_")}.pdf"
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                resolver.openOutputStream(uri).use { outputStream ->
+                    pdfDocument.writeTo(outputStream)
+                }
+            }
+        } else {
+            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+            pdfDocument.writeTo(FileOutputStream(file))
+        }
+        Toast.makeText(context, "PDF guardado en la carpeta de Descargas", Toast.LENGTH_LONG).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error al guardar el PDF", Toast.LENGTH_SHORT).show()
+        e.printStackTrace()
+    } finally {
+        pdfDocument.close()
     }
 }
 
@@ -273,11 +398,13 @@ fun HelpTypeDistributionChart(requests: List<HelpRequest>, modifier: Modifier = 
 
         counts.forEachIndexed { index, count ->
             val barHeight = (count.toFloat() / maxCount) * height
+            
             drawRect(
                 color = colors[index].copy(alpha = 0.1f),
                 topLeft = Offset(spacing + (index * (barWidth + spacing)), 0f),
                 size = Size(barWidth, height)
             )
+            
             drawRect(
                 color = colors[index],
                 topLeft = Offset(spacing + (index * (barWidth + spacing)), height - barHeight),
@@ -285,6 +412,7 @@ fun HelpTypeDistributionChart(requests: List<HelpRequest>, modifier: Modifier = 
             )
         }
     }
+    
     Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
         types.forEach { 
             val label = when(it) {
@@ -318,7 +446,9 @@ fun StatusPieChart(pending: Int, assigned: Int, completed: Int, modifier: Modifi
                 Text("Éxito", style = MaterialTheme.typography.labelSmall)
             }
         }
+        
         Spacer(modifier = Modifier.width(32.dp))
+        
         Column {
             LegendItem("Pendiente (${(pending*100/total)}%)", Color.Red)
             LegendItem("En Proceso (${(assigned*100/total)}%)", Color(0xFF2196F3))
