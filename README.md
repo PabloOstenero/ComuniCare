@@ -62,7 +62,7 @@ El proyecto se ha desarrollado como **Proyecto Final del módulo DIN**, aplicand
 *   **Manual Técnico:** [Manual Técnico](documentos/Manual_Tecnico.md)
 *   **Informe de Pruebas:** [Pruebas](documentos/Pruebas.md)
 *   **Informe de los Criterios:** [Criterios](documentos/Criterios.md)
-*   **Video Demostrativo:** [Video Explicativo](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/video_app.mp4)
+*   **Video Demostrativo:** [Video Explicativo](https://github.com/PabloOstenero/ComuniCare/blob/main/capturas/videos)
 
 ---
 
